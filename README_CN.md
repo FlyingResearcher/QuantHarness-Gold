@@ -245,6 +245,18 @@ python web_interface.py
 4. **实时分析**：获得带有可视化的全面技术分析
 5. **API 密钥管理**：通过界面更新您的 LLM API 密钥
 
+### 决策正确性验证（回测）
+
+独立的验证模块，可在不启动主流程的情况下回放历史决策并评估正确性：
+
+```bash
+python -m validation.cli run --csv record.csv --run-id demo_rule   # 离线回测
+python -m validation.cli serve --port 5001                          # 可视化页面
+```
+
+输出包含准确率、收益、风险、响应时效与基准对比指标，自动标记异常决策，并生成自包含的
+`validation_runs/<run_id>/report.html`。完整说明见 [validation/README.md](validation/README.md)。
+
 ## 📺 演示
 
 ![快速预览](assets/demo.gif)

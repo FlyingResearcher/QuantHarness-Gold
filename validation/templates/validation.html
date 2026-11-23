@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>决策正确性验证 · QuantHarness-Gold</title>
+<style>
+:root{--gold:#b8862f;--gold-soft:#f5ecd8;--ink:#24211c;--muted:#7a746a;--line:#e6e0d5;
+--good:#2f7d4f;--bad:#b23b3b;--card:#fffdf8;--bg:#f6f3ec}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+.hero{background:linear-gradient(135deg,#241f17,#3b3122 55%,#5a4626);color:#f8f3e6;border-radius:16px;padding:26px 30px;box-shadow:0 12px 28px rgba(60,45,20,.18)}
+.hero h1{margin:0 0 6px;font-size:24px}
+.hero p{margin:0;color:#d8c9a7;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-top:18px;box-shadow:0 3px 12px rgba(80,65,35,.05)}
+h2{font-size:16px;margin:0 0 14px;color:#3a2f1d}
+h2:before{content:"";display:inline-block;width:4px;height:14px;background:var(--gold);border-radius:2px;margin-right:9px;vertical-align:-2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fffefb;font-size:13px;color:var(--ink)}
+input:focus,select:focus{outline:2px solid rgba(184,134,47,.28);border-color:var(--gold)}
+.actions{display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap}
+button{padding:10px 22px;border:0;border-radius:9px;background:linear-gradient(135deg,#b8862f,#8a621f);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}
+.link{color:#8a621f;text-decoration:none;font-weight:600}
+.hint{color:var(--muted);font-size:12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:8px}
+.kpi{background:#fffdf8;border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:21px;font-weight:650;margin-top:2px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+#status{margin-top:12px;font-size:13px}
+#status.err{color:var(--bad)}
+iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:12px;margin-top:14px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+thead th{background:var(--gold-soft);color:#5c4a24}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.hide{display:none}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);background:#fbf7ee;font-size:11.5px;color:#6b5c3c}
+code{background:#f2ecdd;padding:1px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>决策正确性验证</h1>
+    <p>基于历史数据回放决策逻辑 · 多维度指标评估 · 异常决策自动标记 · 结果可复现</p>
+  </div>
+
+  <form class="card" id="form">
+    <h2>回测配置</h2>
+    <div class="grid">
+      <div>
+        <label>数据来源</label>
+        <select name="data_mode" id="data_mode">
+          <option value="live">在线取数（gold_data 自动降级）</option>
+          <option value="csv">本地 CSV</option>
+          <option value="synthetic">合成行情（离线演示）</option>
+        </select>
+      </div>
+      <div>
+        <label>资产</label>
+        <select name="asset">
+          <option value="COMEX">COMEX 黄金</option>
+          <option value="SHFE_AU">沪金主连</option>
+          <option value="XAUUSD">XAUUSD</option>
+        </select>
+      </div>
+      <div>
+        <label>周期</label>
+        <select name="timeframe">
+          <option>1d</option><option>4h</option><option>1h</option>
+          <option>30m</option><option>15m</option><option>1w</option>
+        </select>
+      </div>
+      <div>
+        <label>数据源（可留空）</label>
+        <select name="source">
+          <option value="">自动</option>
+          <option value="eastmoney">东方财富</option>
+          <option value="ths">同花顺</option>
+          <option value="akshare">akshare</option>
+        </select>
+      </div>
+      <div><label>开始时间</label><input name="start" type="date"></div>
+      <div><label>结束时间</label><input name="end" type="date"></div>
+      <div id="csv_box" class="hide"><label>CSV 路径（项目内相对路径）</label><input name="csv_path" placeholder="record.csv"></div>
+      <div id="syn_box" class="hide"><label>合成 K 线根数</label><input name="synthetic_bars" type="number" value="320" min="60"></div>
+      <div>
+        <label>决策策略</label>
+        <select name="strategy">
+          <option value="rule">规则回放（确定性，推荐）</option>
+          <option value="recorded">已记录决策回放（需 CSV）</option>
+          <option value="llm">真实 LLM 决策图（慢，需 Key）</option>
+        </select>
+      </div>
+      <div><label>持有 / 预测根数</label><input name="horizon_bars" type="number" value="1" min="1"></div>
+      <div><label>手续费（单边 %）</label><input name="fee_pct" type="number" step="0.001" value="0"></div>
+      <div><label>滑点（单边 %）</label><input name="slippage_pct" type="number" step="0.001" value="0"></div>
+      <div><label>止损 ATR 倍数</label><input name="stop_atr_mult" type="number" step="0.1" value="2"></div>
+      <div><label>风险收益比</label><input name="risk_reward" type="number" step="0.1" value="1.5"></div>
+      <div>
+        <label>对比基准</label>
+        <select name="benchmark">
+          <option value="buy_hold">同区间满仓做多</option>
+          <option value="flat">空仓（0 收益）</option>
+        </select>
+      </div>
+      <div><label>run_id</label><input name="run_id" value="web_default"></div>
+      <div>
+        <label>增量回测</label>
+        <select name="incremental"><option value="">否</option><option value="1">是（复用已算决策）</option></select>
+      </div>
+      <div id="recorded_box" class="hide"><label>决策记录路径</label><input name="recorded_path" placeholder="decisions.csv"></div>
+    </div>
+    <div class="actions">
+      <button type="submit" id="run_btn">开始回测</button>
+      <span class="hint">规则策略约 1 秒完成；LLM 策略按每根 K 线调用一次决策图，耗时较长。</span>
+    </div>
+    <div id="status"></div>
+  </form>
+
+  <div class="card hide" id="result">
+    <h2>验证结果</h2>
+    <div class="kpis" id="kpis"></div>
+    <div class="actions">
+      <a class="link" id="report_link" target="_blank" rel="noopener">打开完整 HTML 报告 →</a>
+      <span class="hint" id="hash"></span>
+    </div>
+    <div id="anomaly_table"></div>
+    <iframe id="report_frame" title="完整报告"></iframe>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById("form");
+const statusEl = document.getElementById("status");
+const resultEl = document.getElementById("result");
+const modeSel = document.getElementById("data_mode");
+const strategySel = form.querySelector("[name=strategy]");
+const csvBox = document.getElementById("csv_box");
+const synBox = document.getElementById("syn_box");
+const recordedBox = document.getElementById("recorded_box");
+const btn = document.getElementById("run_btn");
+
+function syncBoxes() {
+  csvBox.classList.toggle("hide", modeSel.value !== "csv");
+  synBox.classList.toggle("hide", modeSel.value !== "synthetic");
+  recordedBox.classList.toggle("hide", strategySel.value !== "recorded");
+}
+modeSel.addEventListener("change", syncBoxes);
+strategySel.addEventListener("change", syncBoxes);
+syncBoxes();
+
+function fmt(v, suffix="") {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+  return Number(v).toFixed(2) + suffix;
+}
+function kpi(label, value, cls="") {
+  return `<div class="kpi"><div class="l">${label}</div><div class="v ${cls}">${value}</div></div>`;
+}
+
+form.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  btn.disabled = true;
+  statusEl.className = "";
+  statusEl.textContent = "回测执行中，请稍候…";
+  resultEl.classList.add("hide");
+  const payload = Object.fromEntries(new FormData(form).entries());
+  payload.use_stops = true;
+  try {
+    const resp = await fetch("/validation/api/run", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error || "回测失败");
+    const s = data.summary;
+    statusEl.textContent = `完成：run_id=${s.run_id}，决策 ${s.stats.decisions} 条，交易 ${s.stats.trades} 笔。`;
+    document.getElementById("kpis").innerHTML = [
+      kpi("综合评分", fmt(s.composite)),
+      kpi("方向准确率", fmt((s.accuracy ?? 0) * 100, "%")),
+      kpi("累计净收益", fmt(s.total_return_pct, "%"), (s.total_return_pct ?? 0) >= 0 ? "pos" : "neg"),
+      kpi("基准收益", fmt(s.benchmark_return_pct, "%")),
+      kpi("最大回撤", fmt(s.max_drawdown_pct, "%"), "neg"),
+      kpi("P95 决策耗时", fmt(s.p95_latency_ms, " ms")),
+      kpi("异常标记", `${s.anomalies.total_flags ?? 0} 项`),
+      kpi("可复现", s.reproducible ? "是" : "否"),
+    ].join("");
+    document.getElementById("hash").textContent = `决策哈希 ${String(s.decisions_hash).slice(0, 16)}…`;
+    const link = document.getElementById("report_link");
+    link.href = s.report_url;
+    document.getElementById("report_frame").src = s.report_url;
+
+    const cats = Object.values(s.anomalies.by_category || {});
+    document.getElementById("anomaly_table").innerHTML = cats.length
+      ? "<table><thead><tr><th>异常类型</th><th>类别</th><th>数量</th></tr></thead><tbody>" +
+        cats.map(c => `<tr><td>${c.label}</td><td><span class="pill">${c.kind}</span></td><td class="num">${c.count}</td></tr>`).join("") +
+        "</tbody></table>"
+      : "";
+    resultEl.classList.remove("hide");
+  } catch (err) {
+    statusEl.className = "err";
+    statusEl.textContent = "❌ " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

@@ -17,6 +17,15 @@ from trading_graph import TradingGraph
 
 app = Flask(__name__)
 
+# 决策正确性验证（回测）模块：独立 Blueprint，可单独运行，不影响主决策流程。
+# 挂载失败仅打印提示，绝不阻断 web_interface 启动。
+try:
+    from validation.web_app import validation_blueprint
+
+    app.register_blueprint(validation_blueprint, url_prefix="/validation")
+except Exception as _validation_exc:  # pragma: no cover - 防御性代码
+    print(f"[validation] 验证模块未挂载：{_validation_exc}")
+
 SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek")
 PROVIDER_DISPLAY_NAMES = {
     "openai": "OpenAI",
