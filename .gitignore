@@ -1,0 +1,16 @@
+__pycache__/
+.env
+kline_chart.png
+trend_graph.png
+record.csv
+.vscode/settings.json
+ICLR2026_QuantHarness (18).pdf
+pdf_content.txt
+read.html
+read_files/
+app/
+assets/
+benchmark/
+.venv/
+.screenshots/
+__pycache__/
