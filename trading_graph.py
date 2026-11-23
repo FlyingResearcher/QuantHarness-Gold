@@ -17,7 +17,7 @@ from graph_setup import SetGraph
 from graph_util import TechnicalTools
 
 
-SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini")
+SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek")
 MINIMAX_PROVIDER_CONFIG = {
     "minimax": {
         "label": "MiniMax",
@@ -83,7 +83,7 @@ class TradingGraph:
         Get API key with proper validation and error handling.
         
         Args:
-            provider: The provider name ("openai", "anthropic", "qwen", "minimax", or "minimax_cn")
+            provider: The provider name ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini" or "deepseek")
         
         Returns:
             str: The API key for the specified provider
@@ -221,6 +221,28 @@ class TradingGraph:
                     "Please provide your actual Google Gemini API key. "
                     "You can get one from: https://ai.google.dev/"
                 )
+        elif provider == "deepseek":
+            api_key = self.config.get("deepseek_api_key")
+
+            if not api_key:
+                api_key = os.environ.get("DEEPSEEK_API_KEY")
+
+            if not api_key:
+                api_key = generic_key
+
+            if not api_key:
+                raise ValueError(
+                    "DeepSeek API key not found. Please set it using one of these methods:\n"
+                    "1. Set environment variable: export DEEPSEEK_API_KEY='your-key-here'\n"
+                    "2. Update the config with: config['deepseek_api_key'] = 'your-key-here'\n"
+                    "3. Use the web interface to update the API key"
+                )
+
+            if api_key == "":
+                raise ValueError(
+                    "Please provide your actual DeepSeek API key. "
+                    "You can get one from: https://platform.deepseek.com/api_keys"
+                )
         else:
             raise ValueError(f"Unsupported provider: {provider}. Must be one of {', '.join(SUPPORTED_PROVIDERS)}")
 
@@ -238,7 +260,7 @@ class TradingGraph:
         Create an LLM instance based on the provider.
 
         Args:
-            provider: The provider name ("openai", "anthropic", "qwen", "minimax", or "minimax_cn")
+            provider: The provider name ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini" or "deepseek")
             model: The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "qwen-vl-max-latest", "MiniMax-M3")
             temperature: The temperature setting for the model
             api_key: 该槽位专属 Key；为空时回落到 _get_api_key(provider)
@@ -305,6 +327,14 @@ class TradingGraph:
                 temperature=temperature,
                 api_key=api_key,
                 openai_api_base=base_url or "https://generativelanguage.googleapis.com/v1beta/openai/",
+            )
+        elif provider == "deepseek":
+            # DeepSeek provides an OpenAI-compatible text API.
+            return ChatOpenAI(
+                model=model,
+                temperature=temperature,
+                api_key=api_key,
+                openai_api_base=base_url or "https://api.deepseek.com/v1",
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}. Must be one of {', '.join(SUPPORTED_PROVIDERS)}")
@@ -405,6 +435,9 @@ class TradingGraph:
         elif provider == "gemini":
             self.config["gemini_api_key"] = api_key
             os.environ["GOOGLE_API_KEY"] = api_key
+        elif provider == "deepseek":
+            self.config["deepseek_api_key"] = api_key
+            os.environ["DEEPSEEK_API_KEY"] = api_key
         else:
             raise ValueError(f"Unsupported provider: {provider}. Must be one of {', '.join(SUPPORTED_PROVIDERS)}")
 

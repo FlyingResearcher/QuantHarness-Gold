@@ -19,6 +19,7 @@ _PROVIDER_KEY_FIELDS = {
     "minimax": "minimax_api_key",
     "minimax_cn": "minimax_cn_api_key",
     "gemini": "gemini_api_key",
+    "deepseek": "deepseek_api_key",
 }
 
 

@@ -17,7 +17,7 @@ from trading_graph import TradingGraph
 
 app = Flask(__name__)
 
-SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini")
+SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek")
 PROVIDER_DISPLAY_NAMES = {
     "openai": "OpenAI",
     "anthropic": "Anthropic",
@@ -25,6 +25,7 @@ PROVIDER_DISPLAY_NAMES = {
     "minimax": "MiniMax",
     "minimax_cn": "MiniMax CN",
     "gemini": "Google Gemini",
+    "deepseek": "DeepSeek",
 }
 MINIMAX_PROVIDER_CONFIG = {
     "minimax": {
@@ -67,10 +68,15 @@ def apply_provider_defaults(config: Dict[str, Any], provider: str) -> None:
             config["agent_llm_model"] = "gemini-2.5-flash"
         if not config["graph_llm_model"].startswith("gemini"):
             config["graph_llm_model"] = "gemini-2.5-flash"
+    elif provider == "deepseek":
+        if not config["agent_llm_model"].startswith("deepseek"):
+            config["agent_llm_model"] = "deepseek-chat"
+        if not config["graph_llm_model"].startswith("deepseek"):
+            config["graph_llm_model"] = "deepseek-chat"
     elif provider == "openai":
-        if config["agent_llm_model"].startswith(("claude", "qwen", "MiniMax", "gemini")):
+        if config["agent_llm_model"].startswith(("claude", "qwen", "MiniMax", "gemini", "deepseek")):
             config["agent_llm_model"] = "gpt-4o-mini"
-        if config["graph_llm_model"].startswith(("claude", "qwen", "MiniMax", "gemini")):
+        if config["graph_llm_model"].startswith(("claude", "qwen", "MiniMax", "gemini", "deepseek")):
             config["graph_llm_model"] = "gpt-4o"
 
 
@@ -682,6 +688,23 @@ class WebTradingAnalyzer:
                 )
 
                 provider_name = "Google Gemini"
+            elif provider == "deepseek":
+                from openai import OpenAI as _OpenAI
+                api_key = os.environ.get("DEEPSEEK_API_KEY") or self.config.get("deepseek_api_key", "")
+                if not api_key:
+                    return {
+                        "valid": False,
+                        "error": "❌ Invalid API Key: The DeepSeek API key is not set. Please update it in the Settings section.",
+                    }
+
+                client = _OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+                _ = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=5,
+                )
+
+                provider_name = "DeepSeek"
             else:
                 return {"valid": False, "error": f"Unsupported provider: {provider}"}
             return {"valid": True, "message": f"{provider_name} API key is valid"}
@@ -1172,6 +1195,8 @@ def update_api_key():
             os.environ["MINIMAX_CN_API_KEY"] = new_api_key
         elif provider == "gemini":
             os.environ["GOOGLE_API_KEY"] = new_api_key
+        elif provider == "deepseek":
+            os.environ["DEEPSEEK_API_KEY"] = new_api_key
 
         set_active_provider(provider)
 
@@ -1188,6 +1213,8 @@ def update_api_key():
             analyzer.config["minimax_cn_api_key"] = new_api_key
         elif provider == "gemini":
             analyzer.config["gemini_api_key"] = new_api_key
+        elif provider == "deepseek":
+            analyzer.config["deepseek_api_key"] = new_api_key
 
         analyzer.trading_graph.config.update(analyzer.config)
 
@@ -1241,6 +1268,10 @@ def get_api_key_status():
             api_key = os.environ.get("GOOGLE_API_KEY", "")
             if not api_key and hasattr(analyzer, 'config'):
                 api_key = analyzer.config.get("gemini_api_key", "")
+        elif provider == "deepseek":
+            api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+            if not api_key and hasattr(analyzer, 'config'):
+                api_key = analyzer.config.get("deepseek_api_key", "")
         else:
             api_key = ""
         

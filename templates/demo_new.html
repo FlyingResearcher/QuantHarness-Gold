@@ -1096,6 +1096,7 @@
                                         <option value="minimax">MiniMax</option>
                                         <option value="minimax_cn">MiniMax CN</option>
                                         <option value="gemini">Google Gemini (Free)</option>
+                                        <option value="deepseek">DeepSeek</option>
                                     </select>
                                 </div>
                                 
@@ -1160,6 +1161,17 @@
                                     <div class="input-group">
                                         <input type="password" class="form-control" id="geminiApiKeyInput" placeholder="Enter your Google Gemini API key">
                                         <button class="btn btn-outline-primary" type="button" onclick="updateApiKey('gemini')">
+                                            <i class="fas fa-save"></i> Update
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- DeepSeek API Key Input -->
+                                <div class="form-group" id="deepseekApiKeyGroup" style="display: none;">
+                                    <label class="form-label">DeepSeek API Key (platform.deepseek.com)</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="deepseekApiKeyInput" placeholder="Enter your DeepSeek API key">
+                                        <button class="btn btn-outline-primary" type="button" onclick="updateApiKey('deepseek')">
                                             <i class="fas fa-save"></i> Update
                                         </button>
                                     </div>
@@ -1557,7 +1569,8 @@
                         'qwen': 'Qwen',
                         'minimax': 'MiniMax',
                         'minimax_cn': 'MiniMax CN',
-                        'gemini': 'Google Gemini'
+                        'gemini': 'Google Gemini',
+                        'deepseek': 'DeepSeek'
                     };
                     const providerName = providerNames[provider] || provider;
                     
@@ -1904,6 +1917,7 @@
              const minimaxGroup = document.getElementById('minimaxApiKeyGroup');
              const minimaxCnGroup = document.getElementById('minimaxCnApiKeyGroup');
              const geminiGroup = document.getElementById('geminiApiKeyGroup');
+             const deepseekGroup = document.getElementById('deepseekApiKeyGroup');
 
              // Hide all groups first
              openaiGroup.style.display = 'none';
@@ -1912,6 +1926,7 @@
              minimaxGroup.style.display = 'none';
              minimaxCnGroup.style.display = 'none';
              geminiGroup.style.display = 'none';
+             deepseekGroup.style.display = 'none';
 
              // Show the selected provider's group
              if (provider === 'openai') {
@@ -1926,6 +1941,8 @@
                  minimaxCnGroup.style.display = 'block';
              } else if (provider === 'gemini') {
                  geminiGroup.style.display = 'block';
+             } else if (provider === 'deepseek') {
+                 deepseekGroup.style.display = 'block';
              }
              
              // Update provider on backend
@@ -1976,6 +1993,8 @@
                  apiKey = document.getElementById('minimaxCnApiKeyInput').value.trim();
              } else if (actualProvider === 'gemini') {
                  apiKey = document.getElementById('geminiApiKeyInput').value.trim();
+             } else if (actualProvider === 'deepseek') {
+                 apiKey = document.getElementById('deepseekApiKeyInput').value.trim();
              }
              
              if (!apiKey) {
@@ -2011,7 +2030,9 @@
                          'anthropic': 'Anthropic',
                          'qwen': 'Qwen',
                          'minimax': 'MiniMax',
-                         'minimax_cn': 'MiniMax CN'
+                         'minimax_cn': 'MiniMax CN',
+                         'gemini': 'Google Gemini',
+                         'deepseek': 'DeepSeek'
                      };
                      showApiKeySuccess(`${providerNames[actualProvider] || actualProvider} API key updated successfully!`);
                      if (actualProvider === 'openai') {
@@ -2026,6 +2047,8 @@
                          document.getElementById('minimaxCnApiKeyInput').value = '';
                      } else if (actualProvider === 'gemini') {
                          document.getElementById('geminiApiKeyInput').value = '';
+                     } else if (actualProvider === 'deepseek') {
+                         document.getElementById('deepseekApiKeyInput').value = '';
                      }
                      checkApiKeyStatus();
                  } else {
