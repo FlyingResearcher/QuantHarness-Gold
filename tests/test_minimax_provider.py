@@ -2,7 +2,6 @@
 
 import os
 import sys
-import types
 import unittest
 from unittest.mock import MagicMock, patch, PropertyMock
 
@@ -10,8 +9,10 @@ from unittest.mock import MagicMock, patch, PropertyMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/matplotlib")
 
-# Mock heavy native/incompatible dependencies before importing project modules
-# TA-Lib requires a C library; langchain has pydantic v1/v2 conflicts
+from tests._mock_deps import MockedDependencies
+
+# Mock heavy native/incompatible dependencies before importing project modules.
+# TA-Lib requires a C library; langchain has pydantic v1/v2 conflicts.
 MOCK_MODULES = [
     "talib",
     "langchain_anthropic",
@@ -30,9 +31,6 @@ MOCK_MODULES = [
     "yfinance",
 ]
 
-for mod_name in MOCK_MODULES:
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = MagicMock()
 
 class FakeStateGraph:
     def __init__(self, *args, **kwargs):
@@ -48,19 +46,23 @@ class FakeStateGraph:
         return MagicMock()
 
 
-sys.modules["langchain_core.language_models"].BaseChatModel = object
-sys.modules["langgraph.graph"].END = "__end__"
-sys.modules["langgraph.graph"].START = "__start__"
-sys.modules["langgraph.graph"].StateGraph = FakeStateGraph
+_mock_context = None
 
-if "langchain_core.messages" not in sys.modules:
-    messages_module = types.ModuleType("langchain_core.messages")
-    messages_module.AIMessage = MagicMock
-    messages_module.BaseMessage = MagicMock
-    messages_module.HumanMessage = MagicMock
-    messages_module.SystemMessage = MagicMock
-    messages_module.ToolMessage = MagicMock
-    sys.modules["langchain_core.messages"] = messages_module
+
+def setUpModule():
+    """在模块级装上 mock，测试结束再撤掉。"""
+    global _mock_context
+    _mock_context = MockedDependencies(MOCK_MODULES)
+    _mock_context.__enter__()
+
+
+def tearDownModule():
+    """撤掉 mock，并丢弃在 mock 期间导入的项目模块。"""
+    global _mock_context
+    if _mock_context is not None:
+        _mock_context.__exit__(None, None, None)
+        _mock_context = None
+
 
 from env_config import build_config
 

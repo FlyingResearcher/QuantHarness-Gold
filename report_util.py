@@ -7,15 +7,17 @@
 
 放在独立模块而不是 static_util.py，是因为 static_util.py 只负责
 matplotlib/mplfinance 出图；把指标计算与报告拼装塞进去会破坏职责单一。
+
+指标数值取自共享的 `indicators` 模块——报告与 Agent 因此读的是同一批数字。
 """
 import base64
 import json
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 
 import gold_data
+import indicators
 
 KLINE_COLUMNS = ["Datetime", "Open", "High", "Low", "Close", "Volume"]
 
@@ -40,97 +42,25 @@ def build_kline_dict(df):
 
 
 def _kline_to_df(kline_data):
-    """方便用 pandas 计算技术指标。"""
+    """把 kline_data 转成指标模块要的 OHLCV 帧。"""
     df = pd.DataFrame({k: v for k, v in kline_data.items() if k in ["Open", "High", "Low", "Close", "Volume"]})
     return df.astype(float)
 
 
 # ---------------------------------------------------------------------------
-# 技术指标计算（pandas/numpy，不依赖 LLM）
+# 技术指标计算（来自共享 indicators 模块，不依赖 LLM）
 # ---------------------------------------------------------------------------
 
 def compute_indicators(kline_data):
-    """返回 dict：每个指标的完整序列 + 最新值。"""
+    """返回 dict：每个指标的最新值。
+
+    这是报告侧的适配器：把报告的输入形状（kline_data 字典）转成共享
+    `indicators` 模块要的帧，再取它算出的最新值。指标数值一律来自该模块——
+    报告与 Agent 因此读的是同一批数字，%K 口径不可能再分叉
+    （见 docs/adr/0001-stochastic-percent-k-convention.md）。
+    """
     df = _kline_to_df(kline_data)
-    close = df["Close"]
-    high = df["High"]
-    low = df["Low"]
-
-    # ---- RSI (14, Wilder 平滑) ----
-    delta = close.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
-    rs = avg_gain / avg_loss.replace(0, np.nan)
-    rsi = 100 - 100 / (1 + rs)
-
-    # ---- MACD (12, 26, 9) ----
-    ema12 = close.ewm(span=12, adjust=False).mean()
-    ema26 = close.ewm(span=26, adjust=False).mean()
-    macd = ema12 - ema26
-    signal = macd.ewm(span=9, adjust=False).mean()
-    hist = macd - signal
-
-    # ---- Stochastic (14, %K 直接, %D = SMA3) ----
-    lo14 = low.rolling(14, min_periods=14).min()
-    hi14 = high.rolling(14, min_periods=14).max()
-    stoch_k = (close - lo14) / (hi14 - lo14) * 100
-    stoch_d = stoch_k.rolling(3, min_periods=3).mean()
-
-    # ---- ROC (10) ----
-    roc = close.pct_change(10) * 100
-
-    # ---- Williams %R (14) ----
-    willr = (hi14 - close) / (hi14 - lo14).replace(0, np.nan) * -100
-
-    # ---- MA 组合 ----
-    ma5 = close.rolling(5).mean()
-    ma20 = close.rolling(20).mean()
-    ma60 = close.rolling(60).mean()
-
-    # ---- Bollinger (20, 2) ----
-    bb_mid = ma20
-    bb_std = close.rolling(20).std()
-    bb_up = bb_mid + 2 * bb_std
-    bb_lo = bb_mid - 2 * bb_std
-    bb_pct = (close - bb_lo) / (bb_up - bb_lo) * 100  # %B
-
-    # ---- ATR (14) ----
-    tr = pd.concat([
-        high - low,
-        (high - close.shift(1)).abs(),
-        (low - close.shift(1)).abs(),
-    ], axis=1).max(axis=1)
-    atr = tr.ewm(alpha=1 / 14, adjust=False).mean()
-
-    def last(series):
-        s = series.dropna()
-        return float(s.iloc[-1]) if not s.empty else None
-
-    return {
-        "rsi_14": last(rsi),
-        "macd": last(macd),
-        "macd_signal": last(signal),
-        "macd_hist": last(hist),
-        "macd_hist_prev": float(hist.dropna().iloc[-2]) if len(hist.dropna()) >= 2 else None,
-        "stoch_k": last(stoch_k),
-        "stoch_d": last(stoch_d),
-        "roc_10": last(roc),
-        "willr_14": last(willr),
-        "ma5": last(ma5),
-        "ma20": last(ma20),
-        "ma60": last(ma60),
-        "bb_up": last(bb_up),
-        "bb_mid": last(bb_mid),
-        "bb_lo": last(bb_lo),
-        "bb_pct": last(bb_pct),
-        "atr_14": last(atr),
-        "close": last(close),
-        "high": float(high.max()),
-        "low": float(low.min()),
-        "volume": float(df["Volume"].iloc[-1]) if "Volume" in df.columns else None,
-    }
+    return indicators.latest_values(indicators.compute_series(df))
 
 
 def _indicator_interpretation(vals):
@@ -184,10 +114,6 @@ def _indicator_interpretation(vals):
             st_txt = f"%K={sk:.1f} 进入 **超卖区**（<20）"
         else:
             st_txt = f"%K={sk:.1f}，%D={sd:.1f}"
-        if sk > sd and sk_prev_direction(sk, sd) == "cross_up":
-            st_txt += "，**金叉形成**（短线反弹信号）"
-        elif sk < sd and sk_prev_direction(sk, sd) == "cross_down":
-            st_txt += "，**死叉形成**（短线回落信号）"
         lines.append(f"- **Stochastic(14)**：{st_txt}")
 
     # ROC
@@ -253,13 +179,6 @@ def _indicator_interpretation(vals):
         )
 
     return "\n".join(lines)
-
-
-def sk_prev_direction(sk, sd):
-    """近似判断 %K / %D 是否刚发生交叉。简化版：用当前差值和 14 根前差值的符号比较。"""
-    # 由于只拿了最新值，这里做一个弱判断 —— 实际上 indicator_agent 的工具会保留序列。
-    # 为了简洁，这里直接返回 None 让上面的解读跳过交叉判断。
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -571,7 +490,7 @@ def generate_markdown_report(
     report.append("|---|---|---|---|---|")
     report.append("| **RSI** | 14 日涨幅跌幅相对强度，归一化到 0–100 | >50 偏强 | <50 偏弱 | 70/30 是传统超买/超卖阈值 |")
     report.append("| **MACD** | 12 日 EMA − 26 日 EMA；9 日 EMA 作信号线 | DIF 上穿 DEA（金叉） | DIF 下穿 DEA（死叉） | 柱体方向反映动能增减 |")
-    report.append("| **Stochastic** | (C − L14) / (H14 − L14) × 100；%D = SMA3(%K) | %K < 20 且上穿 %D | %K > 80 且下穿 %D | 震荡市最有效 |")
+    report.append("| **Stochastic** | 快速 %K = (C − L14) / (H14 − L14) × 100；%K = SMA3(快速 %K)（慢速 %K）；%D = SMA3(%K) | %K < 20 且上穿 %D | %K > 80 且下穿 %D | 震荡市最有效 |")
     report.append("| **ROC** | (C − C₁₀) / C₁₀ × 100 | >0 动能向上 | <0 动能向下 | 0 轴为关键 |")
     report.append("| **Williams %R** | (H14 − C) / (H14 − L14) × −100 | < −80 超卖反弹 | > −20 超买回落 | 与 Stochastic 互补镜像 |")
     report.append("| **MA 组合** | 简单移动平均 | 价格 > MA5 > MA20 多头排列 | 价格 < MA5 < MA20 空头排列 | MA60 常作牛熊分界 |")
@@ -660,7 +579,8 @@ def generate_markdown_report(
     report.append("本报告由 QuantHarness-Gold 多智能体系统自动生成：")
     report.append("1. **取数**：通过 `gold_data` 从指定数据源（东方财富 / 同花顺 / AKShare）拉取 OHLCV，支持自动降级。")
     report.append("2. **图表**：`static_util` 基于 matplotlib 生成模式识别图与带趋势线/支撑阻力的 K 线图。")
-    report.append("3. **技术指标**：本报告 **三、技术指标详解** 中的数值由本地 pandas/numpy 直接计算（确定性结果）；"
+    report.append("3. **技术指标**：本报告 **三、技术指标详解** 中的数值由共享的 `indicators` 模块本地计算"
+                  "（RSI / MACD / Stochastic / ROC / Williams %R 用 TA-Lib，布林带 / ATR / 均线用 pandas，确定性结果）；"
                   " Agent 原始报告则由 LLM 调用工具（compute_rsi / compute_macd / …）后归纳生成，二者数值应一致或极接近。")
     report.append("4. **Agent 流程**：indicator → pattern → trend → decision，四个 agent 通过 LangGraph 状态机串联执行。")
     report.append("5. **是否使用大模型**：见 **七、模型与算法溯源**；未使用大模型的环节由本地规则/指标计算产出，报告中已逐段标注。")

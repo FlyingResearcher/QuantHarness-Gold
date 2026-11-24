@@ -27,9 +27,11 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 | `web_interface.py` | Flask UI. Largest file (1356 lines) |
 | `static_util.py` | mplfinance chart rendering |
 
-> **In progress:** the consolidation onto `indicators.py` is not complete. `report_util.py`,
-> `graph_util.py` and `validation/indicators.py` still compute Indicators themselves;
-> they are being migrated in tickets #3, #4 and #7. Track progress on issue #1.
+> **In progress:** the consolidation onto `indicators.py` is not complete. The Report
+> (`report_util.py`) now reads the shared module; the agent's tool wrappers
+> (`graph_util.py`) and the backtest (`validation/indicators.py`) still compute
+> Indicators themselves and are being migrated in tickets #4 and #7. Track progress
+> on issue #1.
 
 ## Commands
 
@@ -37,7 +39,7 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 # Interpreter: use the venv directly. Bare `python` hits the MS Store stub.
 .venv/Scripts/python.exe run_gold_analysis.py COMEX 1d akshare --bars 120
 .venv/Scripts/python.exe -m validation.cli run --synthetic 400 --run-id demo
-.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 83 tests, ~6s
+.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 91 tests, ~6s
 ```
 
 ## Conventions

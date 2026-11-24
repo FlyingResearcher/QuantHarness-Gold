@@ -8,14 +8,31 @@ Skip with: pytest -k "not integration"
 import os
 import sys
 import unittest
-from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Mock heavy native dependencies
-for mod_name in ["talib", "langchain_qwq"]:
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = MagicMock()
+from tests._mock_deps import MockedDependencies
+
+# Mock heavy native dependencies. These are installed for the duration of this
+# module's tests only — installing them at import time would leak into every
+# module imported afterwards and make the suite order-dependent.
+MOCK_MODULES = ["talib", "langchain_qwq"]
+
+_mock_context = None
+
+
+def setUpModule():
+    global _mock_context
+    _mock_context = MockedDependencies(MOCK_MODULES)
+    _mock_context.__enter__()
+
+
+def tearDownModule():
+    global _mock_context
+    if _mock_context is not None:
+        _mock_context.__exit__(None, None, None)
+        _mock_context = None
+
 
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 SKIP_REASON = "MINIMAX_API_KEY not set"

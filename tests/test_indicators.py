@@ -135,6 +135,31 @@ class TestIndicatorSeries(unittest.TestCase):
         self.assertFalse(self.series["atr_14"].iloc[0:3].isna().any())
 
 
+class TestPreviousBarValues(unittest.TestCase):
+    """上一根的读数必须是倒数第二个有效值，不能是当前值。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.series = indicators.compute_series(_frame())
+        cls.latest = indicators.latest_values(cls.series)
+
+    def test_macd_hist_prev_is_the_previous_bar(self):
+        """macd_hist_prev 必须取倒数第二根，否则柱体方向判断永远失效。"""
+        hist = self.series["macd_hist"].dropna()
+        self.assertAlmostEqual(
+            self.latest["macd_hist_prev"], float(hist.iloc[-2]), places=10
+        )
+        # 明确的反面：当前值不等于上一根值。
+        self.assertNotAlmostEqual(
+            self.latest["macd_hist_prev"], self.latest["macd_hist"], places=10
+        )
+
+    def test_macd_hist_prev_is_none_when_there_is_no_previous_bar(self):
+        """只有一根有效值时没有"上一根"，必须报 None 而不是当前值。"""
+        series = indicators.compute_series(_frame().iloc[:1])
+        self.assertIsNone(indicators.latest_values(series)["macd_hist_prev"])
+
+
 class TestIndicatorProjections(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

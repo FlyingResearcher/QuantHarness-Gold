@@ -53,8 +53,9 @@ MA_FAST_PERIOD = 5
 MA_MID_PERIOD = 20
 MA_SLOW_PERIOD = 60
 
-# 取倒数第 N 个有效值时用的偏移（1 表示上一根）。
-PREVIOUS_BAR_OFFSET = 1
+# 取倒数第 N 个有效值时用的偏移：1 表示当前根，2 表示上一根。
+CURRENT_BAR_OFFSET = 1
+PREVIOUS_BAR_OFFSET = 2
 
 # 序列键的完整集合：二十个指标，新增指标时只改这一处。
 INDICATOR_KEYS = (
@@ -191,9 +192,12 @@ def latest_values(series: Dict[str, pd.Series]) -> Dict[str, Optional[float]]:
     values["high"] = float(series["high"].max())
     values["low"] = float(series["low"].min())
     # 报告需要上一根的 MACD 柱，用来判断柱体是在放大还是收缩。
+    # 取的是倒数第二根有效值——与合并前的 report_util 实现同口径。
     hist = series["macd_hist"].dropna()
     values["macd_hist_prev"] = (
-        float(hist.iloc[-PREVIOUS_BAR_OFFSET]) if len(hist) > PREVIOUS_BAR_OFFSET else None
+        float(hist.iloc[-PREVIOUS_BAR_OFFSET])
+        if len(hist) >= PREVIOUS_BAR_OFFSET
+        else None
     )
     return values
 
