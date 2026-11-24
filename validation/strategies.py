@@ -3,7 +3,7 @@
 三种策略共用同一接口，回测引擎只依赖接口，不关心决策如何产生：
 
   rule     —— 确定性规则回放（默认）。复刻决策智能体文档化的策略：
-              指标 45% + 趋势 35% + 形态 20%，多空僵持时以趋势方向兜底。
+              指标 45% + 趋势 35% + 模式 20%，多空僵持时以趋势方向兜底。
   recorded —— 回放系统真实产出的决策记录（CSV/JSON），用于评估线上决策质量。
   llm      —— 逐步调用真实多智能体决策图（需要 API Key，慢且非确定性，可选）。
 
@@ -210,7 +210,7 @@ class RecordedDecisionStrategy(DecisionStrategy):
 # 3) 真实决策图回放（可选）
 # ---------------------------------------------------------------------------
 def parse_decision_text(raw: Any) -> Dict[str, Any]:
-    """从决策图输出中解析结构化字段（与 run_gold_analysis._parse_decision 同口径）。"""
+    """从决策图输出中解析结构化字段（与 report_util._parse_decision 同口径）。"""
     if not raw:
         return {}
     if isinstance(raw, dict):

@@ -4,7 +4,7 @@
 
   WRONG_DIRECTION  方向做反且亏损超过阈值（实质性错误）
   MARGINAL_ERROR   方向做反但幅度较小（噪声级错误）
-  SIGNAL_CONFLICT  决策方向与指标/趋势/形态中的多数分项信号相反（偏差）
+  SIGNAL_CONFLICT  决策方向与指标/趋势/模式中的多数分项信号相反（偏差）
   LOW_CONFIDENCE   置信度低于阈值仍被执行的决策（偏差）
   RISK_BREACH      单笔净亏损超过风控上限（错误）
   LATE_ENTRY       入场后极短时间内即触发止损（迟滞入场）

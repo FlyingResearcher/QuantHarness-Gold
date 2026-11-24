@@ -305,9 +305,9 @@ def detect_trend_from_ohlc(high, low, close):
 
 
 def detect_patterns_from_ohlc(high, low, close, open_=None):
-    """纯 OHLC 程序化形态检测（不依赖视觉模型）。
+    """纯 OHLC 程序化模式检测（不依赖视觉模型）。
 
-    覆盖 6 类高置信形态：Bearish/Bullish Flag、Rectangle（横盘整理后突破）、
+    覆盖 6 类高置信模式：Bearish/Bullish Flag、Rectangle（横盘整理后突破）、
     Double Bottom、Falling/Rising Wedge、Descending/Ascending Triangle。
     检测逻辑基于 N 峰谷识别 + 斜率一致性检验。
     """
@@ -317,7 +317,7 @@ def detect_patterns_from_ohlc(high, low, close, open_=None):
 
     n = len(closes)
     if n < 20:
-        return "程序化形态检测：数据不足（<20 根 K 线）"
+        return "程序化模式检测：数据不足（<20 根 K 线）"
 
     # --- 1. 找局部峰谷（基于收盘，窗口=3） ---
     def find_pivots(arr, window=3):
@@ -385,7 +385,7 @@ def detect_patterns_from_ohlc(high, low, close, open_=None):
                     f"区间横盘整理，最新收盘 {last:.1f} 仍在区间内。"
                 )
 
-    # --- 4. 均线形态（多头/空头排列 → 简单趋势反转形态） ---
+    # --- 4. 均线模式（多头/空头排列 → 简单趋势反转模式） ---
     ma5 = pd.Series(closes).rolling(5).mean().iloc[-1] if n >= 5 else None
     ma20 = pd.Series(closes).rolling(20).mean().iloc[-1] if n >= 20 else None
     if ma5 is not None and ma20 is not None:
@@ -402,7 +402,7 @@ def detect_patterns_from_ohlc(high, low, close, open_=None):
         header = f"**Matched patterns**（OHLC 程序化检测，共 {len(matches)} 个）：\n"
         numbered = "\n".join(f"{i+1}. {m}" for i, m in enumerate(matches))
         footer = (
-            "\n注：本形态由 OHLC 程序化检测生成（无视觉模型），基于价格序列、峰谷识别、"
+            "\n注：本模式由 OHLC 程序化检测生成（无视觉模型），基于价格序列、峰谷识别、"
             "均线位置等信号，与视觉模型结果互补参考。"
         )
         return header + numbered + footer
@@ -412,7 +412,7 @@ def detect_patterns_from_ohlc(high, low, close, open_=None):
         hh = sum(1 for i in range(1, min(10, n)) if closes[-i] > closes[-i - 1])
         ll = sum(1 for i in range(1, min(10, n)) if closes[-i] < closes[-i - 1])
         summary = (
-            "**未检测到经典形态**（程序化兜底）。"
+            "**未检测到经典模式**（程序化兜底）。"
             f" 近 {min(10, n)} 根 K 线上涨 {hh} 根、下跌 {ll} 根；"
             f" 区间涨跌幅 {period_chg:+.1f}%。"
             f" 当前价格 {closes[-1]:.2f}。"
@@ -476,17 +476,17 @@ class TechnicalTools:
         colors = (
             ["white"] * len(s_segments)
             + ["white"] * len(r_segments)
-            + ["blue"] * len(s2_segments)
-            + ["red"] * len(r2_segments)
+            + [color.SUPPORT_COLOR] * len(s2_segments)
+            + [color.RESISTANCE_COLOR] * len(r2_segments)
         )
 
         # Create addplot lines for close-based support/resistance
         apds = [
             mpf.make_addplot(
-                support_line_c, color="blue", width=1, label="Close Support"
+                support_line_c, color=color.SUPPORT_COLOR, width=1, label="Close Support"
             ),
             mpf.make_addplot(
-                resist_line_c, color="red", width=1, label="Close Resistance"
+                resist_line_c, color=color.RESISTANCE_COLOR, width=1, label="Close Resistance"
             ),
         ]
 

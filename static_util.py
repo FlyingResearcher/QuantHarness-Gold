@@ -125,14 +125,14 @@ def generate_trend_image(kline_data) -> dict:
     colors = (
         ["white"] * len(s_segments)
         + ["white"] * len(r_segments)
-        + ["blue"] * len(s2_segments)
-        + ["red"] * len(r2_segments)
+        + [color.SUPPORT_COLOR] * len(s2_segments)
+        + [color.RESISTANCE_COLOR] * len(r2_segments)
     )
 
     # Create addplot lines for close-based support/resistance
     apds = [
-        mpf.make_addplot(support_line_c, color="blue", width=1, label="Close Support"),
-        mpf.make_addplot(resist_line_c, color="red", width=1, label="Close Resistance"),
+        mpf.make_addplot(support_line_c, color=color.SUPPORT_COLOR, width=1, label="Close Support"),
+        mpf.make_addplot(resist_line_c, color=color.RESISTANCE_COLOR, width=1, label="Close Resistance"),
     ]
 
     # Generate figure with legend and save locally

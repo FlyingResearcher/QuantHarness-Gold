@@ -4,7 +4,7 @@
 向量化预计算，再在回放时按索引读取——既保证无未来函数，又保证回放速度。
 
 信号结构与决策智能体的文档策略保持一致：
-  指标（动量/超买超卖） 45% + 趋势（通道斜率） 35% + 形态（K 线/突破） 20%
+  指标（动量/超买超卖） 45% + 趋势（通道斜率） 35% + 模式（K 线/突破） 20%
 最终必须给出 LONG / SHORT（与线上 HFT 决策一致，不允许 HOLD）。
 """
 
@@ -39,7 +39,7 @@ def compute_series(df: pd.DataFrame, config: BacktestConfig) -> Dict[str, pd.Ser
     open_ = df["Open"].astype(float)
     volume = df["Volume"].astype(float)
 
-    # RSI(14)，Wilder 平滑（与 run_gold_analysis.compute_indicators 同口径）
+    # RSI(14)，Wilder 平滑（与 report_util.compute_indicators 同口径）
     delta = close.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -205,7 +205,7 @@ def _trend_signal(v: Dict[str, Optional[float]], slope_pct: Optional[float]) -> 
 def _pattern_signal(
     v: Dict[str, Optional[float]], prev: Dict[str, Optional[float]]
 ) -> Tuple[float, List[str]]:
-    """单/双根 K 线形态 + 区间突破，返回 (-1..1, 命中形态列表)。"""
+    """单/双根 K 线模式 + 区间突破，返回 (-1..1, 命中模式列表)。"""
     o, h, l, c = v.get("open"), v.get("high"), v.get("low"), v.get("close")
     po, pc = prev.get("open"), prev.get("close")
     if None in (o, h, l, c):

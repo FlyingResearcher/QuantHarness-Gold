@@ -261,7 +261,7 @@ def _tone_for_score(score: Any) -> str:
 # ---------------------------------------------------------------------------
 _CSS = """
 :root{--gold:#b8862f;--gold-soft:#f5ecd8;--ink:#24211c;--muted:#7a746a;--line:#e6e0d5;
---good:#2f7d4f;--warn:#b07a14;--bad:#b23b3b;--card:#fffdf8;--bg:#f6f3ec;}
+--good:#2f7d4f;--warn:#b07a14;--bad:#b23b3b;--up:#b23b3b;--down:#2f7d4f;--card:#fffdf8;--bg:#f6f3ec;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
 font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;font-size:14px;line-height:1.6}
@@ -292,7 +292,7 @@ position:sticky;top:0}
 table.kv th{width:190px;background:transparent;color:var(--muted);font-weight:500}
 table tbody tr:hover{background:#faf6ec}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.pos{color:var(--good)} .neg{color:var(--bad)} .muted{color:var(--muted)}
+.pos{color:var(--up)} .neg{color:var(--down)} .muted{color:var(--muted)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media(max-width:820px){.grid2{grid-template-columns:1fr}}
 .chart{width:100%;height:auto;display:block}
@@ -617,7 +617,7 @@ def render_html(payload: Dict[str, Any]) -> str:
         ("止损 / 止盈", f"ATR×{_num(cfg.get('stop_atr_mult'), 2)} / "
                      + (f"ATR×{_num(cfg.get('target_atr_mult'), 2)}" if (cfg.get("target_atr_mult") or 0) > 0
                         else f"风险收益比 {_num(cfg.get('risk_reward'), 2)}")),
-        ("权重（指标/趋势/形态）", f"{_num(cfg.get('weight_indicator'), 2)} / "
+        ("权重（指标/趋势/模式）", f"{_num(cfg.get('weight_indicator'), 2)} / "
                                 f"{_num(cfg.get('weight_trend'), 2)} / {_num(cfg.get('weight_pattern'), 2)}"),
         ("异常阈值", f"方向错误≥{_pct(cfg.get('error_return_threshold_pct'), 2)}、"
                    f"低置信<{_num(cfg.get('min_confidence'), 2)}、"

@@ -207,7 +207,7 @@ def create_pattern_agent(tool_llm, graph_llm, toolkit):
             used_llm_obj = graph_llm if pattern_image_b64 else tool_llm
             model_name, model_provider = describe_llm(used_llm_obj)
             detail = (
-                f"大模型 {model_name} 视觉识别 K 线图片，匹配经典形态"
+                f"大模型 {model_name} 视觉识别 K 线图片，匹配经典模式"
                 if pattern_image_b64
                 else f"大模型 {model_name} 基于 OHLC 文本推理"
             )
@@ -226,7 +226,7 @@ def create_pattern_agent(tool_llm, graph_llm, toolkit):
                 model_name, model_provider = None, None
                 detail = (
                     f"未调用大模型（{failed_model} 视觉调用失败），"
-                    "改用 OHLC 程序化形态检测"
+                    "改用 OHLC 程序化模式检测"
                 )
             else:
                 closes = (state.get("kline_data") or {}).get("Close") or []
@@ -237,7 +237,7 @@ def create_pattern_agent(tool_llm, graph_llm, toolkit):
                 )
                 method = "unavailable"
                 model_name, model_provider = None, None
-                detail = "数据不足，形态信号按中性处理"
+                detail = "数据不足，模式信号按中性处理"
 
         out_messages = messages + ([final_response] if final_response is not None else [])
         return {

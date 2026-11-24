@@ -105,7 +105,7 @@ def create_trend_agent(tool_llm, graph_llm, toolkit):
                 {
                     "type": "text",
                     "text": (
-                        f"This candlestick ({time_frame} K-line) chart includes automated trendlines: the **blue line** is support, and the **red line** is resistance, both derived from recent closing prices.\n\n"
+                        f"This candlestick ({time_frame} K-line) chart includes automated trendlines: the **blue line** is support, and the **orange line** is resistance, both derived from recent closing prices. Candles are colored by the Chinese convention: **red = price up, green = price down**.\n\n"
                         "Analyze how price interacts with these lines — are candles bouncing off, breaking through, or compressing between them?\n\n"
                         "Based on trendline slope, spacing, and recent K-line behavior, predict the likely short-term trend: **upward**, **downward**, or **sideways**. "
                         "Support your prediction with respect to prediction, reasoning, signals. "

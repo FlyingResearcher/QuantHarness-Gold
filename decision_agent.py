@@ -107,7 +107,7 @@ def create_final_trade_decider(llm):
                     "method": "llm",
                     "model": model_name,
                     "provider": model_provider,
-                    "detail": f"大模型 {model_name} 综合指标/形态/趋势三份报告后给出最终决策",
+                    "detail": f"大模型 {model_name} 综合指标/模式/趋势三份报告后给出最终决策",
                 }
             },
         }

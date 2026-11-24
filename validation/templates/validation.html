@@ -6,7 +6,7 @@
 <title>决策正确性验证 · QuantHarness-Gold</title>
 <style>
 :root{--gold:#b8862f;--gold-soft:#f5ecd8;--ink:#24211c;--muted:#7a746a;--line:#e6e0d5;
---good:#2f7d4f;--bad:#b23b3b;--card:#fffdf8;--bg:#f6f3ec}
+--good:#2f7d4f;--bad:#b23b3b;--up:#b23b3b;--down:#2f7d4f;--card:#fffdf8;--bg:#f6f3ec}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;font-size:14px}
 .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
@@ -29,7 +29,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .kpi{background:#fffdf8;border:1px solid var(--line);border-radius:11px;padding:12px 14px}
 .kpi .l{font-size:12px;color:var(--muted)}
 .kpi .v{font-size:21px;font-weight:650;margin-top:2px}
-.pos{color:var(--good)} .neg{color:var(--bad)}
+.pos{color:var(--up)} .neg{color:var(--down)}
 #status{margin-top:12px;font-size:13px}
 #status.err{color:var(--bad)}
 iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:12px;margin-top:14px;background:#fff}

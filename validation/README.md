@@ -101,7 +101,7 @@ validation_runs/<run_id>/
 | 超时平仓 | 达到 `horizon_bars` 仍未触发止损/止盈，按收盘价平仓 |
 | 正确性判定 | 按**毛收益方向**判定（不受费用干扰），零收益记为平局并从准确率分母剔除 |
 
-> 规则策略复刻决策智能体在提示词中声明的策略：技术指标 45% + 趋势通道 35% + 形态 20%，
+> 规则策略复刻决策智能体在提示词中声明的策略：技术指标 45% + 趋势通道 35% + 模式 20%，
 > 只输出 LONG / SHORT（与线上一致，不允许 HOLD）；多空僵持时以趋势通道方向兜底。
 > 这是**确定性代理**，用于可复现的回归验证；如需评估真实 LLM 决策，使用 `recorded` 或 `llm` 策略。
 
@@ -181,7 +181,7 @@ validation_runs/<run_id>/
 | `MARGINAL_ERROR` | 错误 | low | 方向做反但幅度小于阈值 |
 | `RISK_BREACH` | 错误 | high | 单笔净亏损 > `max_trade_loss_pct` |
 | `ENGINE_ERROR` | 错误 | high | 决策计算抛错（引擎已隔离，回测继续） |
-| `SIGNAL_CONFLICT` | 偏差 | medium | 决策方向与 ≥2 个分项信号（指标/趋势/形态）相反 |
+| `SIGNAL_CONFLICT` | 偏差 | medium | 决策方向与 ≥2 个分项信号（指标/趋势/模式）相反 |
 | `LATE_ENTRY` | 偏差 | medium | 入场后 `late_entry_bars` 根内即触发止损 |
 | `LOW_CONFIDENCE` | 偏差 | low | 置信度 < `min_confidence` |
 | `DUPLICATE_SIGNAL` | 偏差 | low | 连续同向超过 `max_repeat_signals`（每段只记一次） |

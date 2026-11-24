@@ -154,7 +154,7 @@ class BacktestConfig:
             raise ConfigError("target_atr_mult 不能为负数")
         weights = (self.weight_indicator, self.weight_trend, self.weight_pattern)
         if any(w < 0 for w in weights) or sum(weights) <= 0:
-            raise ConfigError("指标/趋势/形态权重不能为负，且总和必须大于 0")
+            raise ConfigError("指标/趋势/模式权重不能为负，且总和必须大于 0")
         if not 0 < float(self.confidence_scale):
             raise ConfigError("confidence_scale 必须为正数")
         if strategy == "recorded" and not self.recorded_path:

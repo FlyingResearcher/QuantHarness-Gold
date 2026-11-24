@@ -924,18 +924,37 @@ def _chart_font() -> Optional[str]:
 
 
 def _mpf_style():
-    """mplfinance style carrying CJK rcParams."""
+    """mplfinance style carrying CJK rcParams.
+
+    The market colors are overridden with the project-wide "红涨绿跌" rule
+    (up -> red, down -> green) from ``color_style``; the yahoo base style uses
+    the opposite convention, so it must not be relied on for candle colors.
+    """
     import mplfinance as mpf
+
+    from color_style import DOWN_COLOR, UP_COLOR
 
     cjk = _chart_font()
     rc = {"axes.unicode_minus": False}
     if cjk:
         rc["font.family"] = "sans-serif"
         rc["font.sans-serif"] = [cjk, "DejaVu Sans"]
+    marketcolors = mpf.make_marketcolors(
+        base_mpf_style="yahoo",
+        up=UP_COLOR,
+        down=DOWN_COLOR,
+        edge="inherit",
+        volume="inherit",
+        ohlc="inherit",
+    )
     try:
-        return mpf.make_mpf_style(base_mpf_style="yahoo", rc=rc)
+        return mpf.make_mpf_style(
+            base_mpf_style="yahoo", marketcolors=marketcolors, rc=rc
+        )
     except TypeError:
-        style = mpf.make_mpf_style(base_mpf_style="yahoo")
+        style = mpf.make_mpf_style(
+            base_mpf_style="yahoo", marketcolors=marketcolors
+        )
         style["rc"] = rc
         return style
 

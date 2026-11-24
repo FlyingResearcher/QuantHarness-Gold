@@ -77,14 +77,28 @@ def _build_mpf_style():
     the font must be injected through the style's ``rc`` mapping — otherwise the
     title silently falls back to DejaVu Sans and Chinese renders as boxes.
     """
+    from color_style import DOWN_COLOR, UP_COLOR
+
     rc = {"axes.unicode_minus": False}
     if _CJK_FONT:
         rc["font.family"] = "sans-serif"
         rc["font.sans-serif"] = [_CJK_FONT, "DejaVu Sans"]
+    marketcolors = mpf.make_marketcolors(
+        base_mpf_style="yahoo",
+        up=UP_COLOR,
+        down=DOWN_COLOR,
+        edge="inherit",
+        volume="inherit",
+        ohlc="inherit",
+    )
     try:
-        return mpf.make_mpf_style(base_mpf_style="yahoo", rc=rc)
+        return mpf.make_mpf_style(
+            base_mpf_style="yahoo", marketcolors=marketcolors, rc=rc
+        )
     except TypeError:
-        style = mpf.make_mpf_style(base_mpf_style="yahoo")
+        style = mpf.make_mpf_style(
+            base_mpf_style="yahoo", marketcolors=marketcolors
+        )
         style["rc"] = rc
         return style
 
