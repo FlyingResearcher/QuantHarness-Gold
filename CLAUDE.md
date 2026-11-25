@@ -18,7 +18,7 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 
 | Module | Role |
 |---|---|
-| `indicators.py` | Shared Indicator module: TA-Lib for RSI/MACD/Stochastic/ROC/Williams %R; pandas for Bollinger/ATR/MA. Three projections: `compute_series` / `latest_values` / `tool_payload`. See `docs/adr/0001-stochastic-percent-k-convention.md` |
+| `indicators.py` | Shared Indicator module: TA-Lib for RSI/MACD/Stochastic/ROC/Williams %R; pandas for Bollinger/ATR/MA. Projections: `compute_series` (backtest) / `latest_values` (Report) / one `*_tool_payload` per agent tool. See `docs/adr/0001-stochastic-percent-k-convention.md` |
 | `gold_data.py` | K-line fetching across `eastmoney`/`ths`/`akshare`, with failover and OHLCV validation |
 | `report_util.py` | Report assembly: indicator values, interpretations, Markdown output |
 | `graph_util.py` | `TechnicalTools` (LLM-facing tool wrappers), trendline/pattern detection |
@@ -38,7 +38,7 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 # Interpreter: use the venv directly. Bare `python` hits the MS Store stub.
 .venv/Scripts/python.exe run_gold_analysis.py COMEX 1d akshare --bars 120
 .venv/Scripts/python.exe -m validation.cli run --synthetic 400 --run-id demo
-.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 97 tests, ~6s
+.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 99 tests, ~5s
 ```
 
 ## Conventions

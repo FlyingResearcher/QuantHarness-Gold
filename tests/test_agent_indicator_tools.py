@@ -110,19 +110,21 @@ class TestAgentIndicatorTools(unittest.TestCase):
 
     def test_tools_read_from_the_shared_module(self):
         """工具必须真的读共享模块，而不是自己另算一套。"""
-        original = indicators.tool_payload
+        original = indicators.stoch_tool_payload
         sentinel = 5.0
         try:
-            def fake_tool_payload(df, **kwargs):
+            def fake_stoch_payload(df, **kwargs):
                 payload = original(df, **kwargs)
-                payload["stoch_k"] = [value + sentinel for value in payload["stoch_k"]]
+                payload["stoch_k"] = [
+                    value + sentinel for value in payload["stoch_k"]
+                ]
                 return payload
 
-            indicators.tool_payload = fake_tool_payload
+            indicators.stoch_tool_payload = fake_stoch_payload
             payload = self.toolkit.compute_stoch.invoke(
                 {"kline_data": self.kline_data})
         finally:
-            indicators.tool_payload = original
+            indicators.stoch_tool_payload = original
 
         baseline = self.toolkit.compute_stoch.invoke(
             {"kline_data": self.kline_data})
@@ -137,6 +139,33 @@ class TestAgentIndicatorTools(unittest.TestCase):
         custom = self.toolkit.compute_rsi.invoke(
             {"kline_data": self.kline_data, "period": 7})["rsi"]
         self.assertNotEqual(default[-1], custom[-1])
+
+    def test_close_only_tools_accept_a_close_only_payload(self):
+        """compute_rsi / compute_roc / compute_macd 的输入契约只要求 Close 列。
+
+        它们以前只读 Close 就能工作；路由到共享模块后若顺手读了 High/Low，
+        就会与自己的文档契约矛盾（LLM 会照文档只传 Close）。
+        """
+        close_only = {"Close": self.kline_data["Close"]}
+        for name, kwargs in (
+            ("compute_rsi", {"period": 14}),
+            ("compute_roc", {"period": 10}),
+            ("compute_macd", {}),
+        ):
+            with self.subTest(tool=name):
+                result = getattr(self.toolkit, name).invoke(
+                    {"kline_data": close_only, **kwargs}
+                )
+                self.assertTrue(result, f"{name} 返回空结果")
+
+    def test_high_low_tools_reject_a_payload_missing_their_columns(self):
+        """需要 High/Low 的工具必须明确报出缺列，而不是裸 KeyError。"""
+        close_only = {"Close": self.kline_data["Close"]}
+        for name in ("compute_stoch", "compute_willr"):
+            with self.subTest(tool=name):
+                with self.assertRaises(KeyError) as ctx:
+                    getattr(self.toolkit, name).invoke({"kline_data": close_only})
+                self.assertIn("High", str(ctx.exception))
 
 
 class TestFallbackReportAgreesWithReportTable(unittest.TestCase):

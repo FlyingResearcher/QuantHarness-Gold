@@ -3,10 +3,14 @@
 职责边界：
   * 纯计算，不发网络请求、不读配置、不依赖 LLM。
   * 输入是标准化的 OHLCV DataFrame（列名 Open/High/Low/Close/Volume）。
-  * 输出三种投影，同源于一次计算：
+  * 输出投影，同源于同一批单指标实现：
       - compute_series()   完整序列，供回测使用
       - latest_values()   最新值标量，供报告使用
-      - tool_payload()    近期窗口列表，供 Agent 工具使用
+      - rsi_tool_payload() / macd_tool_payload() / stoch_tool_payload() /
+        roc_tool_payload() / willr_tool_payload()
+                          各工具各自的近期窗口载荷，供 Agent 使用
+        （每个工具只读它真正需要的列，与工具的输入契约一致）
+      - tool_payload()    汇总以上五项，需要全部指标时用
 
 口径约定（见 docs/adr/0001-stochastic-percent-k-convention.md）：
   * Stochastic 的 %K 是**慢速 %K**——快速 %K 的 3 周期简单移动平均；
@@ -228,51 +232,121 @@ def latest_values(series: Dict[str, pd.Series]) -> Dict[str, Optional[float]]:
     return values
 
 
+def _windowed(values: np.ndarray, index, size: int = TOOL_WINDOW) -> List[float]:
+    """Agent 工具载荷的窗口形状——这是唯一定义处。
+
+    补零、保留两位、取最近 size 根。所有工具投影都经过这里，
+    形状不可能各写一份。
+    """
+    return pd.Series(values, index=index).fillna(0).round(2).tolist()[-size:]
+
+
+def _full_series(values: np.ndarray, index) -> List[float]:
+    """完整序列形状，供 MACD 使用（既有工具一直返回全序列）。"""
+    return pd.Series(values, index=index).fillna(0).round(2).tolist()
+
+
+def _check_columns(df: pd.DataFrame, columns: tuple, tool_name: str) -> None:
+    """校验工具输入所需的列；缺失时报出工具名与缺失列，而不是裸 KeyError。"""
+    missing = [column for column in columns if column not in df.columns]
+    if missing:
+        raise KeyError(
+            f"{tool_name} 需要这些列：{', '.join(columns)}；缺少：{', '.join(missing)}"
+        )
+
+
+def rsi_tool_payload(df: pd.DataFrame, period: int = RSI_PERIOD) -> Dict[str, List[float]]:
+    """RSI 工具投影。只需 Close 列——与工具文档声明的输入契约一致。"""
+    _check_columns(df, ("Close",), "compute_rsi")
+    close = df["Close"].astype(float)
+    rsi = _rsi(close.to_numpy(), period)
+    return {"rsi": _windowed(rsi, close.index)}
+
+
+def macd_tool_payload(
+    df: pd.DataFrame,
+    fast: int = MACD_FAST_PERIOD,
+    slow: int = MACD_SLOW_PERIOD,
+    signal: int = MACD_SIGNAL_PERIOD,
+) -> Dict[str, List[float]]:
+    """MACD 工具投影。只需 Close 列。macd 返回全序列，与既有形状一致。"""
+    _check_columns(df, ("Close",), "compute_macd")
+    close = df["Close"].astype(float)
+    macd, macd_signal, macd_hist = _macd(close.to_numpy(), fast, slow, signal)
+    return {
+        "macd": _full_series(macd, close.index),
+        "macd_signal": _windowed(macd_signal, close.index),
+        "macd_hist": _windowed(macd_hist, close.index),
+    }
+
+
+def stoch_tool_payload(df: pd.DataFrame) -> Dict[str, List[float]]:
+    """Stochastic 工具投影。需要 High / Low / Close。"""
+    _check_columns(df, ("High", "Low", "Close"), "compute_stoch")
+    close = df["Close"].astype(float)
+    stoch_k, stoch_d = _stoch(
+        df["High"].astype(float).to_numpy(),
+        df["Low"].astype(float).to_numpy(),
+        close.to_numpy(),
+    )
+    return {
+        "stoch_k": _windowed(stoch_k, close.index),
+        "stoch_d": _windowed(stoch_d, close.index),
+    }
+
+
+def roc_tool_payload(df: pd.DataFrame, period: int = ROC_PERIOD) -> Dict[str, List[float]]:
+    """ROC 工具投影。只需 Close 列。"""
+    _check_columns(df, ("Close",), "compute_roc")
+    close = df["Close"].astype(float)
+    roc = _roc(close.to_numpy(), period)
+    return {"roc": _windowed(roc, close.index)}
+
+
+def willr_tool_payload(df: pd.DataFrame, period: int = WILLR_PERIOD) -> Dict[str, List[float]]:
+    """Williams %R 工具投影。需要 High / Low / Close。"""
+    _check_columns(df, ("High", "Low", "Close"), "compute_willr")
+    close = df["Close"].astype(float)
+    willr = _willr(
+        df["High"].astype(float).to_numpy(),
+        df["Low"].astype(float).to_numpy(),
+        close.to_numpy(),
+        period,
+    )
+    return {"willr": _windowed(willr, close.index)}
+
+
+# 工具名 -> 投影函数。工具包装器据此分派，不必各写一次窗口逻辑。
+TOOL_PROJECTIONS = {
+    "rsi": rsi_tool_payload,
+    "macd": macd_tool_payload,
+    "stoch": stoch_tool_payload,
+    "roc": roc_tool_payload,
+    "willr": willr_tool_payload,
+}
+
+
 def tool_payload(
     df: pd.DataFrame,
     *,
     rsi_period: int = RSI_PERIOD,
     macd_fast: int = MACD_FAST_PERIOD,
     macd_slow: int = MACD_SLOW_PERIOD,
-    macd_signal: int = MACD_SIGNAL_PERIOD,
+    macd_signal_period: int = MACD_SIGNAL_PERIOD,
     roc_period: int = ROC_PERIOD,
     willr_period: int = WILLR_PERIOD,
 ) -> Dict[str, List[float]]:
-    """工具载荷投影：近期窗口的列表，供 Agent 的工具返回给 LLM。
+    """全部指标的工具载荷，合并自各单指标投影。
 
-    键名沿用 Agent 既有工具的命名（rsi / macd / roc / willr），
-    这样 LLM 看到的工具输出形状保持不变。窗口形状只在这里定义一次。
-
-    周期可覆盖：Agent 的工具把周期暴露给 LLM（compute_rsi(period=7)），
-    所以载荷必须能跟随任意周期，而不是只有规范周期。默认周期下与
-    compute_series + latest_values 同源。
+    形状定义在 `_windowed` 一处；这里只负责汇总。需要完整八项时用这个；
+    单个工具应该调用自己的投影，只读它真正需要的列。
     """
-    close = df["Close"].astype(float)
-    high = df["High"].astype(float)
-    low = df["Low"].astype(float)
-    index = close.index
-    close_values = close.to_numpy()
-    high_values = high.to_numpy()
-    low_values = low.to_numpy()
-
-    rsi = _rsi(close_values, rsi_period)
-    macd, macd_signal, macd_hist = _macd(
-        close_values, macd_fast, macd_slow, macd_signal
+    payload: Dict[str, List[float]] = {}
+    payload.update(rsi_tool_payload(df, rsi_period))
+    payload.update(
+        macd_tool_payload(df, macd_fast, macd_slow, macd_signal_period)
     )
-    stoch_k, stoch_d = _stoch(high_values, low_values, close_values)
-    roc = _roc(close_values, roc_period)
-    willr = _willr(high_values, low_values, close_values, willr_period)
-
-    def window(values: np.ndarray, size: int = TOOL_WINDOW) -> List[float]:
-        return pd.Series(values, index=index).fillna(0).round(2).tolist()[-size:]
-
-    return {
-        "rsi": window(rsi),
-        "macd": pd.Series(macd, index=index).fillna(0).round(2).tolist(),
-        "macd_signal": window(macd_signal),
-        "macd_hist": window(macd_hist),
-        "stoch_k": window(stoch_k),
-        "stoch_d": window(stoch_d),
-        "roc": window(roc),
-        "willr": window(willr),
-    }
+    payload.update(stoch_tool_payload(df))
+    payload.update(roc_tool_payload(df, roc_period))
+    payload.update(willr_tool_payload(df, willr_period))
+    return payload

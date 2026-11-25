@@ -13,6 +13,11 @@ import sys
 import types
 from unittest.mock import MagicMock, patch
 
+# 预先导入共享指标模块：它要真的 TA-Lib，不能落进任何 mock 窗口。
+# 在 mock 窗口内首次导入会把 `indicators.talib` 绑成替身，之后所有指标读数
+# 都会变成 MagicMock——而且不同测试模块会拿到不同的模块对象。
+import indicators  # noqa: F401  (导入即生效)
+
 
 class FakeStateGraph:
     """langgraph 的替身：只需能满足 `trading_graph` 的导入与调用形状。"""
