@@ -72,6 +72,48 @@ def _sma(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window).mean()
 
 
+# ---------------------------------------------------------------------------
+# 单个指标的计算：报告与 Agent 工具共用同一份实现
+# ---------------------------------------------------------------------------
+
+def _rsi(close_values: np.ndarray, period: int) -> np.ndarray:
+    return talib.RSI(close_values, timeperiod=period)
+
+
+def _macd(
+    close_values: np.ndarray, fast: int, slow: int, signal: int
+) -> tuple:
+    return talib.MACD(
+        close_values, fastperiod=fast, slowperiod=slow, signalperiod=signal
+    )
+
+
+def _stoch(
+    high_values: np.ndarray, low_values: np.ndarray, close_values: np.ndarray
+) -> tuple:
+    """TA-Lib 的 STOCH 默认返回慢速 %K（快速 %K 的 SMA）与 %D（%K 的 SMA）。"""
+    return talib.STOCH(
+        high_values,
+        low_values,
+        close_values,
+        fastk_period=STOCH_FASTK_PERIOD,
+        slowk_period=STOCH_SLOWK_PERIOD,
+        slowd_period=STOCH_SLOWD_PERIOD,
+    )
+
+
+def _roc(close_values: np.ndarray, period: int) -> np.ndarray:
+    return talib.ROC(close_values, timeperiod=period)
+
+
+def _willr(
+    high_values: np.ndarray, low_values: np.ndarray, close_values: np.ndarray, period: int
+) -> np.ndarray:
+    return talib.WILLR(
+        high_values, low_values, close_values, timeperiod=period
+    )
+
+
 def _talib_indicators(
     close: pd.Series, high: pd.Series, low: pd.Series
 ) -> Dict[str, pd.Series]:
@@ -81,29 +123,13 @@ def _talib_indicators(
     high_values = high.to_numpy()
     low_values = low.to_numpy()
 
-    rsi = talib.RSI(close_values, timeperiod=RSI_PERIOD)
-
-    macd, macd_signal, macd_hist = talib.MACD(
-        close_values,
-        fastperiod=MACD_FAST_PERIOD,
-        slowperiod=MACD_SLOW_PERIOD,
-        signalperiod=MACD_SIGNAL_PERIOD,
+    rsi = _rsi(close_values, RSI_PERIOD)
+    macd, macd_signal, macd_hist = _macd(
+        close_values, MACD_FAST_PERIOD, MACD_SLOW_PERIOD, MACD_SIGNAL_PERIOD
     )
-
-    # TA-Lib 的 STOCH 默认返回慢速 %K（快速 %K 的 SMA）与 %D（%K 的 SMA）。
-    stoch_k, stoch_d = talib.STOCH(
-        high_values,
-        low_values,
-        close_values,
-        fastk_period=STOCH_FASTK_PERIOD,
-        slowk_period=STOCH_SLOWK_PERIOD,
-        slowd_period=STOCH_SLOWD_PERIOD,
-    )
-
-    roc = talib.ROC(close_values, timeperiod=ROC_PERIOD)
-    willr = talib.WILLR(
-        high_values, low_values, close_values, timeperiod=WILLR_PERIOD
-    )
+    stoch_k, stoch_d = _stoch(high_values, low_values, close_values)
+    roc = _roc(close_values, ROC_PERIOD)
+    willr = _willr(high_values, low_values, close_values, WILLR_PERIOD)
 
     return {
         "rsi_14": pd.Series(rsi, index=index),
@@ -220,4 +246,51 @@ def tool_payload(series: Dict[str, pd.Series]) -> Dict[str, List[float]]:
         "stoch_d": window("stoch_d"),
         "roc": window("roc_10"),
         "willr": window("willr_14"),
+    }
+
+
+def tool_payload_for_periods(
+    df: pd.DataFrame,
+    *,
+    rsi_period: int = RSI_PERIOD,
+    macd_fast: int = MACD_FAST_PERIOD,
+    macd_slow: int = MACD_SLOW_PERIOD,
+    macd_signal: int = MACD_SIGNAL_PERIOD,
+    roc_period: int = ROC_PERIOD,
+    willr_period: int = WILLR_PERIOD,
+) -> Dict[str, List[float]]:
+    """按指定周期算出 Agent 工具载荷。
+
+    Agent 的工具把周期暴露给 LLM（compute_rsi(period=7)），所以载荷必须能
+    跟随任意周期，而不是只有规范周期。用的是与 compute_series 同一份单指标
+    实现，因此两处永远同源。
+    """
+    close = df["Close"].astype(float)
+    high = df["High"].astype(float)
+    low = df["Low"].astype(float)
+    index = close.index
+    close_values = close.to_numpy()
+    high_values = high.to_numpy()
+    low_values = low.to_numpy()
+
+    rsi = _rsi(close_values, rsi_period)
+    macd, macd_signal, macd_hist = _macd(
+        close_values, macd_fast, macd_slow, macd_signal
+    )
+    stoch_k, stoch_d = _stoch(high_values, low_values, close_values)
+    roc = _roc(close_values, roc_period)
+    willr = _willr(high_values, low_values, close_values, willr_period)
+
+    def window(values: np.ndarray, size: int = TOOL_WINDOW) -> List[float]:
+        return pd.Series(values, index=index).fillna(0).round(2).tolist()[-size:]
+
+    return {
+        "rsi": window(rsi),
+        "macd": pd.Series(macd, index=index).fillna(0).round(2).tolist(),
+        "macd_signal": window(macd_signal),
+        "macd_hist": window(macd_hist),
+        "stoch_k": window(stoch_k),
+        "stoch_d": window(stoch_d),
+        "roc": window(roc),
+        "willr": window(willr),
     }

@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 import numpy as np
 import pandas as pd
-import talib
 from langchain_core.tools import tool
 
 import color_style as color
+import indicators
 
 matplotlib.use("Agg")
 
@@ -614,9 +614,10 @@ class TechnicalTools:
         Returns:
             dict: A dictionary with a single key 'rsi' mapping to a list of RSI values.
         """
-        df = pd.DataFrame(kline_data)
-        rsi = talib.RSI(df["Close"], timeperiod=period)
-        return {"rsi": rsi.fillna(0).round(2).tolist()[-28:]}
+        payload = indicators.tool_payload_for_periods(
+            pd.DataFrame(kline_data), rsi_period=period
+        )
+        return {"rsi": payload["rsi"]}
 
     @staticmethod
     @tool
@@ -641,17 +642,16 @@ class TechnicalTools:
         Returns:
             dict: Dictionary containing 'macd', 'macd_signal', and 'macd_hist' as lists of values.
         """
-        df = pd.DataFrame(kline_data)
-        macd, macd_signal, macd_hist = talib.MACD(
-            df["Close"],
-            fastperiod=fastperiod,
-            slowperiod=slowperiod,
-            signalperiod=signalperiod,
+        payload = indicators.tool_payload_for_periods(
+            pd.DataFrame(kline_data),
+            macd_fast=fastperiod,
+            macd_slow=slowperiod,
+            macd_signal=signalperiod,
         )
         return {
-            "macd": macd.fillna(0).round(2).tolist(),
-            "macd_signal": macd_signal.fillna(0).round(2).tolist()[-28:],
-            "macd_hist": macd_hist.fillna(0).round(2).tolist()[-28:],
+            "macd": payload["macd"],
+            "macd_signal": payload["macd_signal"],
+            "macd_hist": payload["macd_hist"],
         }
 
     @staticmethod
@@ -672,18 +672,10 @@ class TechnicalTools:
             dict: A dictionary with keys 'stoch_k' and 'stoch_d',
                 each mapping to a list representing %K and %D values.
         """
-        df = pd.DataFrame(kline_data)
-        stoch_k, stoch_d = talib.STOCH(
-            df["High"],
-            df["Low"],
-            df["Close"],
-            fastk_period=14,
-            slowk_period=3,
-            slowd_period=3,
-        )
+        payload = indicators.tool_payload_for_periods(pd.DataFrame(kline_data))
         return {
-            "stoch_k": stoch_k.fillna(0).round(2).tolist()[-28:],
-            "stoch_d": stoch_d.fillna(0).round(2).tolist()[-28:],
+            "stoch_k": payload["stoch_k"],
+            "stoch_d": payload["stoch_d"],
         }
 
     @staticmethod
@@ -707,10 +699,10 @@ class TechnicalTools:
         Returns:
             dict: A dictionary with a single key 'roc' mapping to a list of ROC values.
         """
-
-        df = pd.DataFrame(kline_data)
-        roc = talib.ROC(df["Close"], timeperiod=period)
-        return {"roc": roc.fillna(0).round(2).tolist()[-28:]}
+        payload = indicators.tool_payload_for_periods(
+            pd.DataFrame(kline_data), roc_period=period
+        )
+        return {"roc": payload["roc"]}
 
     @staticmethod
     @tool
@@ -731,7 +723,7 @@ class TechnicalTools:
         Returns:
             dict: Dictionary with key 'willr' mapping to the list of Williams %R values.
         """
-        # print("-------------------------CALLED COMPUTE WILLR--------------------------\n")
-        df = pd.DataFrame(kline_data)
-        willr = talib.WILLR(df["High"], df["Low"], df["Close"], timeperiod=period)
-        return {"willr": willr.fillna(0).round(2).tolist()[-28:]}
+        payload = indicators.tool_payload_for_periods(
+            pd.DataFrame(kline_data), willr_period=period
+        )
+        return {"willr": payload["willr"]}

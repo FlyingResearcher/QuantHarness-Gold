@@ -1,15 +1,16 @@
 # Stochastic %K is the smoothed (slow) %K
 
 > **Status: accepted, partially implemented.** The shared module `indicators.py`
-> implements this convention (ticket #2) and the Report reads from it (ticket #3).
-> The agent's tool wrappers and the backtest are still migrated in tickets #4 and #7,
-> so the repo still contains the fast-%K implementations described under *Context*.
+> implements this convention (ticket #2); the Report reads from it (ticket #3) and the
+> agent's tool wrappers read from it (ticket #4). The backtest is still migrated in
+> ticket #7, so the repo still contains the fast-%K implementation described under
+> *Context*.
 
 The project reports Stochastic **%K as the smoothed value** — the 3-period simple moving average of the raw 14-period oscillator — and **%D as the 3-period moving average of %K**. This matches TA-Lib's `STOCH(fastk_period=14, slowk_period=3, slowd_period=3)` output and the convention mainstream trading platforms display.
 
 ## Context
 
-Three implementations of the same indicators existed with two different %K conventions. `report_util.compute_indicators()` and `validation/indicators.py` computed the **fast** %K (unsmoothed) and labelled its 3-period average "%D". `graph_util.TechnicalTools.compute_stoch()` used TA-Lib's default and therefore reported the **slow** %K as "%K". The Report has since been migrated onto the shared module; the other two are still pending.
+Three implementations of the same indicators existed with two different %K conventions. `report_util.compute_indicators()` and `validation/indicators.py` computed the **fast** %K (unsmoothed) and labelled its 3-period average "%D". `graph_util.TechnicalTools.compute_stoch()` used TA-Lib's default and therefore reported the **slow** %K as "%K". The Report and the agent's tool wrappers have since been migrated onto the shared module; the backtest is still pending.
 
 The result was a live correctness defect, not a cosmetic one. A single generated report contained both conventions: the indicator table printed `%K=18.89 %D=14.68` while the agent's prose in the same file said `%K 14.68 versus %D 10.49` — the report's "%D" was numerically the agent's "%K". The report's own reference table documented "%D = SMA3(%K)", which described the fast convention. Because Stochastic is the one indicator the report's overbought/oversold thresholds key off, the mislabelling changed how every generated report classified overbought and oversold conditions.
 
