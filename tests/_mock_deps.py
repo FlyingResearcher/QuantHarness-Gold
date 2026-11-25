@@ -50,8 +50,11 @@ class MockedDependencies:
 
     用法：
 
-        with MockedDependencies(["talib", "langchain_qwq"]):
+        with MockedDependencies(["langchain_qwq"]):
             from trading_graph import TradingGraph
+
+    TA-Lib 不应出现在 mock 清单里：共享指标模块要用真库（见
+    `tests/test_backtest_talib.py` 的回归守卫）。
     """
 
     def __init__(self, module_names, purge_project_modules: bool = True):
@@ -67,7 +70,10 @@ class MockedDependencies:
             mocks["langgraph.graph"].END = "__end__"
             mocks["langgraph.graph"].START = "__start__"
             mocks["langgraph.graph"].StateGraph = FakeStateGraph
-        if "langchain_core.messages" in mocks:
+        # messages 子模块：只要 mock 了 langchain_core 就得提供，否则
+        # `from langchain_core.messages import BaseMessage` 会失败
+        # （被 mock 的父包不是一个真的包）。
+        if "langchain_core" in mocks:
             messages_module = types.ModuleType("langchain_core.messages")
             messages_module.AIMessage = MagicMock
             messages_module.BaseMessage = MagicMock

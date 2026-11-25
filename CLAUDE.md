@@ -38,7 +38,7 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 # Interpreter: use the venv directly. Bare `python` hits the MS Store stub.
 .venv/Scripts/python.exe run_gold_analysis.py COMEX 1d akshare --bars 120
 .venv/Scripts/python.exe -m validation.cli run --synthetic 400 --run-id demo
-.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 99 tests, ~5s
+.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 105 tests, ~5s
 ```
 
 ## Conventions

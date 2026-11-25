@@ -64,7 +64,7 @@ python -m validation.cli serve --port 5001
 validation/
 ├── config.py       # BacktestConfig：全部参数 + 校验 + 决策指纹
 ├── data.py         # 在线 / CSV / 合成数据统一加载、数据指纹、窗口指纹
-├── indicators.py   # 纯 pandas/numpy 指标与规则信号（不依赖 TA-Lib）
+├── indicators.py   # 指标与规则信号（将改为复用根目录的共享 indicators 模块，届时依赖 TA-Lib）
 ├── strategies.py   # 可插拔策略：rule / recorded / llm
 ├── engine.py       # 逐 bar 回放、成交模拟、增量缓存、决策哈希
 ├── metrics.py      # 准确率 / 收益 / 风险 / 时效 / 基准 / 综合评分

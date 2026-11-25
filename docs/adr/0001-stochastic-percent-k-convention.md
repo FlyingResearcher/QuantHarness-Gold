@@ -2,9 +2,10 @@
 
 > **Status: accepted, partially implemented.** The shared module `indicators.py`
 > implements this convention (ticket #2); the Report reads from it (ticket #3) and the
-> agent's tool wrappers read from it (ticket #4). The backtest is still migrated in
-> ticket #7, so the repo still contains the fast-%K implementation described under
-> *Context*.
+> agent's tool wrappers read from it (ticket #4). Ticket #5 cleared the way for the
+> backtest — TA-Lib is no longer mocked in the test suite — but the backtest still
+> computes its Indicators itself and is migrated in ticket #7, so the repo still
+> contains the fast-%K implementation described under *Context*.
 
 The project reports Stochastic **%K as the smoothed value** — the 3-period simple moving average of the raw 14-period oscillator — and **%D as the 3-period moving average of %K**. This matches TA-Lib's `STOCH(fastk_period=14, slowk_period=3, slowd_period=3)` output and the convention mainstream trading platforms display.
 
@@ -31,4 +32,4 @@ The backtest's rule-strategy accuracy on the 400-bar synthetic fixture is expect
 
 Reports generated before this decision remain committed in `reports/` and carry the fast-%K labels. They are left as historical records of the runs that actually happened; the canonical convention applies to every report generated afterwards.
 
-`validation/` no longer avoids TA-Lib. Its "pure pandas/numpy, no TA-Lib" guarantee is withdrawn — the alternative was preserving a second implementation, which is the drift this consolidation exists to prevent.
+`validation/` will no longer avoid TA-Lib once ticket #7 lands. Its "pure pandas/numpy, no TA-Lib" guarantee is withdrawn now, deliberately — test mocks of TA-Lib were already removed in ticket #5 — because the alternative was preserving a second implementation, which is the drift this consolidation exists to prevent.

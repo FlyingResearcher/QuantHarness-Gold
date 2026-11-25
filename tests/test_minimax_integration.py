@@ -13,10 +13,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tests._mock_deps import MockedDependencies
 
-# Mock heavy native dependencies. These are installed for the duration of this
-# module's tests only — installing them at import time would leak into every
-# module imported afterwards and make the suite order-dependent.
-MOCK_MODULES = ["talib", "langchain_qwq"]
+# Mock the incompatible dependency. TA-Lib is NOT mocked — these tests exercise
+# the real library through the shared indicators module. Installed for the
+# duration of this module's tests only, so it cannot leak into other modules.
+MOCK_MODULES = ["langchain_qwq"]
 
 _mock_context = None
 

@@ -11,10 +11,12 @@ os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/matplotlib")
 
 from tests._mock_deps import MockedDependencies
 
-# Mock heavy native/incompatible dependencies before importing project modules.
-# TA-Lib requires a C library; langchain has pydantic v1/v2 conflicts.
+# Mock the incompatible dependencies before importing project modules.
+# langchain has pydantic v1/v2 conflicts, and matplotlib/mplfinance/yfinance are
+# heavy natives these tests never touch. TA-Lib is NOT mocked: the shared
+# indicators module must exercise the real library, and the real one imports
+# fine here.
 MOCK_MODULES = [
-    "talib",
     "langchain_anthropic",
     "langchain_core",
     "langchain_core.language_models",
