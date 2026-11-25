@@ -22,7 +22,7 @@ def make_decision(i, direction="LONG", confidence=0.8, error=None, sub=None, sco
         risk_reward_ratio=1.5,
         sub_signals=sub,
         signal_parts={},
-        signals={"atr": 1.0},
+        signals={"atr_14": 1.0},
         latency_ms=1.0,
         strategy="rule",
         window_digest=f"d{i}",

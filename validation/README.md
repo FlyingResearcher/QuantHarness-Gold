@@ -64,7 +64,7 @@ python -m validation.cli serve --port 5001
 validation/
 ├── config.py       # BacktestConfig：全部参数 + 校验 + 决策指纹
 ├── data.py         # 在线 / CSV / 合成数据统一加载、数据指纹、窗口指纹
-├── indicators.py   # 指标与规则信号（将改为复用根目录的共享 indicators 模块，届时依赖 TA-Lib）
+├── indicators.py   # 指标接入共享 indicators 模块（TA-Lib）＋规则信号与回测特有序列
 ├── strategies.py   # 可插拔策略：rule / recorded / llm
 ├── engine.py       # 逐 bar 回放、成交模拟、增量缓存、决策哈希
 ├── metrics.py      # 准确率 / 收益 / 风险 / 时效 / 基准 / 综合评分
@@ -104,6 +104,10 @@ validation_runs/<run_id>/
 > 规则策略复刻决策智能体在提示词中声明的策略：技术指标 45% + 趋势通道 35% + 模式 20%，
 > 只输出 LONG / SHORT（与线上一致，不允许 HOLD）；多空僵持时以趋势通道方向兜底。
 > 这是**确定性代理**，用于可复现的回归验证；如需评估真实 LLM 决策，使用 `recorded` 或 `llm` 策略。
+>
+> 指标序列来自仓库根目录的共享 `indicators` 模块（依赖 TA-Lib），与报告和 Agent 同源；
+> 因此 Stochastic 的 %K 是**慢速 %K**，规则策略的阈值相应取 83/17 而不是快速 %K 惯用的
+> 85/15——平滑缩短了极端区停留时间，沿用 85/15 会让该分项的触发频率明显下降。
 
 ---
 
@@ -217,12 +221,13 @@ validation_runs/<run_id>/
 ## 9. 测试
 
 ```bash
-# 全部验证模块测试（33 个用例，覆盖正常/边界/异常）
-python -m unittest discover -s tests -p "test_validation_*.py" -v
+# 全部验证模块测试（50 个用例，覆盖正常/边界/异常）
+.venv/Scripts/python.exe -m unittest discover -s tests -t . -p "test_validation_*.py" -v
 ```
 
 | 文件 | 覆盖点 |
 |---|---|
+| `tests/test_validation_indicators.py` | 指标取自共享模块、慢速 %K、83/17 阈值与触发率、快照键名与取值、`atr_14` 止损读取、引擎版本升版与指纹、固定夹具准确率/成交数 |
 | `tests/test_validation_engine.py` | 可复现、无未来函数、持有期、止损出场、增量复用、参数变更失效、已记录策略、数据不足 |
 | `tests/test_validation_metrics.py` | 手算准确率/盈亏比/最大回撤/VaR-CVaR/Beta/空集边界/时效 |
 | `tests/test_validation_anomalies.py` | 九类异常逐一触发、计数与严重度、干净样本零标记 |

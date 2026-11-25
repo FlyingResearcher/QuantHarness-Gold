@@ -16,7 +16,9 @@ import re
 from dataclasses import asdict, dataclass, fields
 from typing import Any, Dict, Optional
 
-ENGINE_VERSION = "1.0.0"
+# 版本随指标口径变化递增。它参与 decision_params() → 决策指纹，
+# 因此升版会让旧的增量缓存全部失效，避免新旧指标口径的决策混在一起。
+ENGINE_VERSION = "1.1.0"
 
 # 支持的回测周期（与 gold_data 的周期口径保持一致）
 SUPPORTED_TIMEFRAMES = ("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo")

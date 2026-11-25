@@ -27,10 +27,11 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 | `web_interface.py` | Flask UI. Largest file (1356 lines) |
 | `static_util.py` | mplfinance chart rendering |
 
-> **In progress:** the consolidation onto `indicators.py` is not complete. The Report
-> (`report_util.py`) and the agent's tool wrappers (`graph_util.py`) now read the
-> shared module; the backtest (`validation/indicators.py`) still computes
-> Indicators itself and is being migrated in ticket #7. Track progress on issue #1.
+> **Consolidation complete.** The Report (`report_util.py`), the agent's tool wrappers
+> (`graph_util.py`) and the backtest (`validation/indicators.py`) all read
+> `indicators.py`. The backtest still owns its own channel/volume series (`vol_ratio`,
+> `roll_high`, `roll_low`, `trend_slope_pct`) because the shared module does not provide
+> them. Track history on issue #1.
 
 ## Commands
 
@@ -38,11 +39,14 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 # Interpreter: use the venv directly. Bare `python` hits the MS Store stub.
 .venv/Scripts/python.exe run_gold_analysis.py COMEX 1d akshare --bars 120
 .venv/Scripts/python.exe -m validation.cli run --synthetic 400 --run-id demo
-.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 105 tests, ~5s
+.venv/Scripts/python.exe -m unittest discover -s tests -t .   # 120 tests, ~9s
 ```
 
 ## Conventions
 
-- Indicator keys carry their period: `rsi_14`, `roc_10`, `willr_14`, `atr_14`.
+- Indicator keys carry their period: `rsi_14`, `roc_10`, `willr_14`, `atr_14`. This
+  holds for the backtest's persisted decision snapshots too. Exception: the agent
+  tool payloads keep their short keys (`rsi`, `roc`, `willr`) because that is the
+  contract the LLM's tool schemas declare.
 - No `uv`, no `pytest`. Tests are stdlib `unittest`.
 

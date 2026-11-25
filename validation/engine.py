@@ -313,7 +313,7 @@ class BacktestEngine:
             entry_adj = entry_raw * (1.0 + slip / 100.0) if sign > 0 else entry_raw * (1.0 - slip / 100.0)
 
             try:
-                atr = dec.signals.get("atr") if isinstance(dec.signals, dict) else None
+                atr = dec.signals.get("atr_14") if isinstance(dec.signals, dict) else None
             except Exception:  # pragma: no cover - 仅防御性代码
                 atr = None
             try:

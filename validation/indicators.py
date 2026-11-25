@@ -3,9 +3,14 @@
 所有序列都是「因果」的（只使用当前及更早的 K 线），因此可以安全地一次性
 向量化预计算，再在回放时按索引读取——既保证无未来函数，又保证回放速度。
 
-依赖说明：本模块目前仍用纯 pandas/numpy 计算指标序列，但它即将改为复用
-仓库根目录的共享 `indicators` 模块（见 ADR-0001），届时会依赖 TA-Lib。
-「不依赖 TA-Lib」不再是本模块的保证，也不要再按这个前提写代码。
+依赖说明：指标序列本身来自仓库根目录的共享 `indicators` 模块（见 ADR-0001），
+因此本模块依赖 TA-Lib。共享模块负责 RSI / MACD / Stochastic / ROC /
+Williams %R / 布林带 / ATR / 均线；本模块只补充回测特有的量能、滚动区间与
+趋势斜率，并把它们与共享序列拼成回放所用的同一张表。
+
+口径：Stochastic 的 %K 是**慢速 %K**，与报告和 Agent 一致。慢速化会削短
+极端区间的停留时间，所以规则的 Stochastic 阈值相应下调（见
+`STOCH_OVERBOUGHT` / `STOCH_OVERSOLD`）。
 
 信号结构与决策智能体的文档策略保持一致：
   指标（动量/超买超卖） 45% + 趋势（通道斜率） 35% + 模式（K 线/突破） 20%
@@ -19,7 +24,17 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+import indicators as shared_indicators
+
 from .config import BacktestConfig
+
+# Stochastic 阈值。共享模块的 %K 是慢速 %K（快速 %K 的 3 周期 SMA）；
+# 平滑让极端区间停留更短，若沿用快速 %K 的 85/15，Stochastic 信号的触发频率
+# 会明显下降、该分项对总分的贡献随之缩水。83/17 把触发频率拉回原水平附近
+# （固定夹具上 43.09% → 44.99%；83/16 在该夹具上恰好等于原值，但未跨夹具验证，
+# 所以这里沿用本票选定的 83/17，见 docs/adr/0001）。
+STOCH_OVERBOUGHT = 83.0
+STOCH_OVERSOLD = 17.0
 
 
 def _safe(value: Any, digits: int = 6) -> Optional[float]:
@@ -37,52 +52,27 @@ def _safe(value: Any, digits: int = 6) -> Optional[float]:
 # 序列计算
 # ---------------------------------------------------------------------------
 def compute_series(df: pd.DataFrame, config: BacktestConfig) -> Dict[str, pd.Series]:
+    """回放所用的全部序列：共享模块的指标 + 回测特有的量能与通道序列。
+
+    指标本身（RSI / MACD / Stochastic / ROC / Williams %R / 布林带 / ATR /
+    均线）一律取自共享 `indicators` 模块，回测因此与报告、Agent 读同一批
+    数字。这里只补充共享模块不负责的东西：开盘价、量比、滚动区间与趋势斜率。
+    """
+    series = dict(shared_indicators.compute_series(df))
+    series.update(_backtest_only_series(df, config))
+    return series
+
+
+def _backtest_only_series(
+    df: pd.DataFrame, config: BacktestConfig
+) -> Dict[str, pd.Series]:
+    """共享模块不提供、但规则策略需要的序列（量能 / 通道 / 斜率）。"""
     close = df["Close"].astype(float)
     high = df["High"].astype(float)
     low = df["Low"].astype(float)
-    open_ = df["Open"].astype(float)
-    volume = df["Volume"].astype(float)
-
-    # RSI(14)，Wilder 平滑（与 report_util.compute_indicators 同口径）
-    delta = close.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
-    rs = avg_gain / avg_loss.replace(0, np.nan)
-    rsi = 100 - 100 / (1 + rs)
-
-    # MACD(12, 26, 9)
-    ema12 = close.ewm(span=12, adjust=False).mean()
-    ema26 = close.ewm(span=26, adjust=False).mean()
-    macd = ema12 - ema26
-    macd_signal = macd.ewm(span=9, adjust=False).mean()
-    macd_hist = macd - macd_signal
-
-    # Stochastic(14, 3)
-    lo14 = low.rolling(14, min_periods=14).min()
-    hi14 = high.rolling(14, min_periods=14).max()
-    stoch_k = (close - lo14) / (hi14 - lo14).replace(0, np.nan) * 100
-    stoch_d = stoch_k.rolling(3, min_periods=3).mean()
-
-    roc = close.pct_change(10) * 100
-    willr = (hi14 - close) / (hi14 - lo14).replace(0, np.nan) * -100
-
-    ma5 = close.rolling(5).mean()
-    ma20 = close.rolling(20).mean()
-    ma60 = close.rolling(60).mean()
-    bb_std = close.rolling(20).std()
-    bb_up = ma20 + 2 * bb_std
-    bb_lo = ma20 - 2 * bb_std
-    bb_pct = (close - bb_lo) / (bb_up - bb_lo).replace(0, np.nan) * 100
-
-    tr = pd.concat(
-        [high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()],
-        axis=1,
-    ).max(axis=1)
-    atr = tr.ewm(alpha=1 / 14, adjust=False).mean()
 
     # 成交量相对强度（相对过去 20 根均量，且不含当前 bar）
+    volume = df["Volume"].astype(float)
     vol_ratio = volume / volume.rolling(20).mean().shift(1).replace(0, np.nan)
 
     w = max(5, int(config.trend_window))
@@ -104,26 +94,7 @@ def compute_series(df: pd.DataFrame, config: BacktestConfig) -> Dict[str, pd.Ser
     trend_slope_pct = slope * w / mean_price.replace(0, np.nan) * 100
 
     return {
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume,
-        "rsi": rsi,
-        "macd": macd,
-        "macd_signal": macd_signal,
-        "macd_hist": macd_hist,
-        "stoch_k": stoch_k,
-        "stoch_d": stoch_d,
-        "roc": roc,
-        "willr": willr,
-        "ma5": ma5,
-        "ma20": ma20,
-        "ma60": ma60,
-        "bb_up": bb_up,
-        "bb_lo": bb_lo,
-        "bb_pct": bb_pct,
-        "atr": atr,
+        "open": df["Open"].astype(float),
         "vol_ratio": vol_ratio,
         "roll_high": roll_high,
         "roll_low": roll_low,
@@ -139,15 +110,19 @@ def _clip(value: float, lo: float = -1.0, hi: float = 1.0) -> float:
 
 
 def _indicator_signal(v: Dict[str, Optional[float]]) -> Tuple[float, Dict[str, float]]:
-    """技术指标综合分（-1..1），返回 (分数, 分项分数)。"""
-    atr = v.get("atr") or 0.0
+    """技术指标综合分（-1..1），返回 (分数, 分项分数)。
+
+    `v` 用的是共享模块的带周期键（rsi_14 / roc_10 / willr_14 / atr_14），
+    回测与报告读同一批数字。
+    """
+    atr = v.get("atr_14") or 0.0
     hist = v.get("macd_hist")
     macd_vote = 0.0
     if hist is not None:
         scale = max(1e-9, atr * 0.3)
         macd_vote = _clip(hist / scale)
 
-    rsi = v.get("rsi")
+    rsi = v.get("rsi_14")
     rsi_vote = 0.0
     if rsi is not None:
         if rsi >= 70:
@@ -159,20 +134,20 @@ def _indicator_signal(v: Dict[str, Optional[float]]) -> Tuple[float, Dict[str, f
         elif rsi < 45:
             rsi_vote = -_clip((45 - rsi) / 15.0) * 0.5
 
-    roc = v.get("roc")
+    roc = v.get("roc_10")
     roc_vote = _clip(roc / 5.0) if roc is not None else 0.0
 
     k, d = v.get("stoch_k"), v.get("stoch_d")
     stoch_vote = 0.0
     if k is not None and d is not None:
         stoch_vote = _clip((k - d) / 20.0)
-        if k > 85:
+        if k > STOCH_OVERBOUGHT:
             stoch_vote -= 0.3
-        elif k < 15:
+        elif k < STOCH_OVERSOLD:
             stoch_vote += 0.3
         stoch_vote = _clip(stoch_vote)
 
-    willr = v.get("willr")
+    willr = v.get("willr_14")
     willr_vote = _clip(-(willr + 50) / 50.0) if willr is not None else 0.0
 
     close, ma5, ma20 = v.get("close"), v.get("ma5"), v.get("ma20")
@@ -304,12 +279,12 @@ class RuleSignalEngine:
         rr = round(min(1.8, max(1.2, 1.2 + 0.6 * confidence)), 2)
 
         snapshot = {
-            "rsi": v.get("rsi"),
+            "rsi_14": v.get("rsi_14"),
             "macd_hist": v.get("macd_hist"),
-            "roc": v.get("roc"),
+            "roc_10": v.get("roc_10"),
             "stoch_k": v.get("stoch_k"),
-            "willr": v.get("willr"),
-            "atr": v.get("atr"),
+            "willr_14": v.get("willr_14"),
+            "atr_14": v.get("atr_14"),
             "close": v.get("close"),
             "vol_ratio": v.get("vol_ratio"),
             "trend_slope_pct": v.get("trend_slope_pct"),
@@ -333,5 +308,4 @@ class RuleSignalEngine:
                 "patterns": patterns,
             },
             "signals": snapshot,
-            "atr": v.get("atr"),
         }

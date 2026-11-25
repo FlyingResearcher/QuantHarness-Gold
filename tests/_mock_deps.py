@@ -1,9 +1,12 @@
 """测试用的依赖替身：让重依赖只在需要它的模块测试期间存在。
 
 为什么需要它：某些测试要导入 `trading_graph` / `web_interface`，而它们的依赖
-里有 TA-Lib（C 库）与 langchain（pydantic v1/v2 冲突）。把这些模块 mock 掉能
-让测试跑起来，但如果在**导入期**装 mock，就会污染其后导入的所有模块——例如让
+里有 langchain（pydantic v1/v2 冲突）与若干重原生库。把这些模块 mock 掉能让
+测试跑起来，但如果在**导入期**装 mock，就会污染其后导入的所有模块——例如让
 `graph_util` 的 `@tool` 装饰器变成 MagicMock，测试结果因此依赖文件名的排序。
+
+TA-Lib **不在这里 mock**：共享指标模块要用真库，mock 它会让指标读数变成
+MagicMock。守卫见 `tests/test_backtest_talib.py`。
 
 这里用 `patch.dict` 把 mock 的生命周期限制在单个测试模块内，并在结束时丢弃
 期间被污染的项目模块。
