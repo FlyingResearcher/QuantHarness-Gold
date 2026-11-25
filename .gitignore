@@ -15,3 +15,4 @@ benchmark/
 .screenshots/
 __pycache__/
 validation_runs/
+reports/
