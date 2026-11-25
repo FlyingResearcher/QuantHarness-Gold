@@ -614,7 +614,7 @@ class TechnicalTools:
         Returns:
             dict: A dictionary with a single key 'rsi' mapping to a list of RSI values.
         """
-        payload = indicators.tool_payload_for_periods(
+        payload = indicators.tool_payload(
             pd.DataFrame(kline_data), rsi_period=period
         )
         return {"rsi": payload["rsi"]}
@@ -642,7 +642,7 @@ class TechnicalTools:
         Returns:
             dict: Dictionary containing 'macd', 'macd_signal', and 'macd_hist' as lists of values.
         """
-        payload = indicators.tool_payload_for_periods(
+        payload = indicators.tool_payload(
             pd.DataFrame(kline_data),
             macd_fast=fastperiod,
             macd_slow=slowperiod,
@@ -672,7 +672,7 @@ class TechnicalTools:
             dict: A dictionary with keys 'stoch_k' and 'stoch_d',
                 each mapping to a list representing %K and %D values.
         """
-        payload = indicators.tool_payload_for_periods(pd.DataFrame(kline_data))
+        payload = indicators.tool_payload(pd.DataFrame(kline_data))
         return {
             "stoch_k": payload["stoch_k"],
             "stoch_d": payload["stoch_d"],
@@ -699,7 +699,7 @@ class TechnicalTools:
         Returns:
             dict: A dictionary with a single key 'roc' mapping to a list of ROC values.
         """
-        payload = indicators.tool_payload_for_periods(
+        payload = indicators.tool_payload(
             pd.DataFrame(kline_data), roc_period=period
         )
         return {"roc": payload["roc"]}
@@ -723,7 +723,7 @@ class TechnicalTools:
         Returns:
             dict: Dictionary with key 'willr' mapping to the list of Williams %R values.
         """
-        payload = indicators.tool_payload_for_periods(
+        payload = indicators.tool_payload(
             pd.DataFrame(kline_data), willr_period=period
         )
         return {"willr": payload["willr"]}

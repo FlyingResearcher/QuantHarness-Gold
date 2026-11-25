@@ -105,14 +105,12 @@ class TestAgentIndicatorTools(unittest.TestCase):
     def test_tools_match_the_shared_module_payload(self):
         """工具必须与共享模块的 tool_payload 投影逐字节相同。"""
         payload = self._payload()
-        shared = indicators.tool_payload(
-            indicators.compute_series(_frame(self.kline_data))
-        )
+        shared = indicators.tool_payload(_frame(self.kline_data))
         self.assertEqual(payload, shared)
 
     def test_tools_read_from_the_shared_module(self):
         """工具必须真的读共享模块，而不是自己另算一套。"""
-        original = indicators.tool_payload_for_periods
+        original = indicators.tool_payload
         sentinel = 5.0
         try:
             def fake_tool_payload(df, **kwargs):
@@ -120,11 +118,11 @@ class TestAgentIndicatorTools(unittest.TestCase):
                 payload["stoch_k"] = [value + sentinel for value in payload["stoch_k"]]
                 return payload
 
-            indicators.tool_payload_for_periods = fake_tool_payload
+            indicators.tool_payload = fake_tool_payload
             payload = self.toolkit.compute_stoch.invoke(
                 {"kline_data": self.kline_data})
         finally:
-            indicators.tool_payload_for_periods = original
+            indicators.tool_payload = original
 
         baseline = self.toolkit.compute_stoch.invoke(
             {"kline_data": self.kline_data})

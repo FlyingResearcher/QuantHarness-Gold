@@ -228,28 +228,7 @@ def latest_values(series: Dict[str, pd.Series]) -> Dict[str, Optional[float]]:
     return values
 
 
-def tool_payload(series: Dict[str, pd.Series]) -> Dict[str, List[float]]:
-    """工具载荷投影：近期窗口的列表，供 Agent 的工具返回给 LLM。
-
-    键名沿用 Agent 既有工具的命名（rsi / macd / roc / willr），
-    这样 LLM 看到的工具输出形状保持不变。
-    """
-    def window(key: str, size: int = TOOL_WINDOW) -> List[float]:
-        return series[key].fillna(0).round(2).tolist()[-size:]
-
-    return {
-        "rsi": window("rsi_14"),
-        "macd": series["macd"].fillna(0).round(2).tolist(),
-        "macd_signal": window("macd_signal"),
-        "macd_hist": window("macd_hist"),
-        "stoch_k": window("stoch_k"),
-        "stoch_d": window("stoch_d"),
-        "roc": window("roc_10"),
-        "willr": window("willr_14"),
-    }
-
-
-def tool_payload_for_periods(
+def tool_payload(
     df: pd.DataFrame,
     *,
     rsi_period: int = RSI_PERIOD,
@@ -259,11 +238,14 @@ def tool_payload_for_periods(
     roc_period: int = ROC_PERIOD,
     willr_period: int = WILLR_PERIOD,
 ) -> Dict[str, List[float]]:
-    """按指定周期算出 Agent 工具载荷。
+    """工具载荷投影：近期窗口的列表，供 Agent 的工具返回给 LLM。
 
-    Agent 的工具把周期暴露给 LLM（compute_rsi(period=7)），所以载荷必须能
-    跟随任意周期，而不是只有规范周期。用的是与 compute_series 同一份单指标
-    实现，因此两处永远同源。
+    键名沿用 Agent 既有工具的命名（rsi / macd / roc / willr），
+    这样 LLM 看到的工具输出形状保持不变。窗口形状只在这里定义一次。
+
+    周期可覆盖：Agent 的工具把周期暴露给 LLM（compute_rsi(period=7)），
+    所以载荷必须能跟随任意周期，而不是只有规范周期。默认周期下与
+    compute_series + latest_values 同源。
     """
     close = df["Close"].astype(float)
     high = df["High"].astype(float)

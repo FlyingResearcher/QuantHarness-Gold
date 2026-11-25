@@ -163,12 +163,13 @@ class TestPreviousBarValues(unittest.TestCase):
 class TestIndicatorProjections(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.series = indicators.compute_series(_frame())
+        cls.frame = _frame()
+        cls.series = indicators.compute_series(cls.frame)
 
     def test_all_projections_report_the_same_percent_k(self):
         """三种投影必须给出同一个 %K / %D——这是本次合并的核心保证。"""
         latest = indicators.latest_values(self.series)
-        payload = indicators.tool_payload(self.series)
+        payload = indicators.tool_payload(self.frame)
 
         series_k = float(self.series["stoch_k"].dropna().iloc[-1])
         series_d = float(self.series["stoch_d"].dropna().iloc[-1])
@@ -197,7 +198,7 @@ class TestIndicatorProjections(unittest.TestCase):
 
     def test_tool_payload_keeps_the_agent_tool_shape(self):
         """工具载荷必须沿用 Agent 既有工具的键名与窗口长度。"""
-        payload = indicators.tool_payload(self.series)
+        payload = indicators.tool_payload(self.frame)
         self.assertEqual(
             set(payload.keys()),
             {"rsi", "macd", "macd_signal", "macd_hist", "stoch_k", "stoch_d", "roc", "willr"},
