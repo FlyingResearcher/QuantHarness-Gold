@@ -13,7 +13,7 @@ from openai import OpenAI
 
 import static_util
 import gold_data
-from trading_graph import TradingGraph
+from trading_graph import BOB_API_PROVIDER_CONFIG, TradingGraph, normalize_bob_api_base_url
 
 app = Flask(__name__)
 
@@ -26,7 +26,7 @@ try:
 except Exception as _validation_exc:  # pragma: no cover - 防御性代码
     print(f"[validation] 验证模块未挂载：{_validation_exc}")
 
-SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek")
+SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek", "bob-api")
 PROVIDER_DISPLAY_NAMES = {
     "openai": "OpenAI",
     "anthropic": "Anthropic",
@@ -35,6 +35,7 @@ PROVIDER_DISPLAY_NAMES = {
     "minimax_cn": "MiniMax CN",
     "gemini": "Google Gemini",
     "deepseek": "DeepSeek",
+    "bob-api": "Bob API",
 }
 MINIMAX_PROVIDER_CONFIG = {
     "minimax": {
@@ -82,6 +83,17 @@ def apply_provider_defaults(config: Dict[str, Any], provider: str) -> None:
             config["agent_llm_model"] = "deepseek-chat"
         if not config["graph_llm_model"].startswith("deepseek"):
             config["graph_llm_model"] = "deepseek-chat"
+    elif provider == "bob-api":
+        model = config.get("bob_api_model") or BOB_API_PROVIDER_CONFIG["default_model"]
+        base_url = config.get("bob_api_base_url") or BOB_API_PROVIDER_CONFIG["base_url"]
+        config["agent_llm_model"] = model
+        config["graph_llm_model"] = model
+        config["agent_llm_base_url"] = base_url
+        config["graph_llm_base_url"] = base_url
+        # 不把上一个供应商的槽位密钥误用于 Bob API；通用 Key 仍由适配层兜底。
+        bob_api_key = config.get("bob_api_key", "")
+        config["agent_llm_api_key"] = bob_api_key
+        config["graph_llm_api_key"] = bob_api_key
     elif provider == "openai":
         if config["agent_llm_model"].startswith(("claude", "qwen", "MiniMax", "gemini", "deepseek")):
             config["agent_llm_model"] = "gpt-4o-mini"
@@ -714,6 +726,40 @@ class WebTradingAnalyzer:
                 )
 
                 provider_name = "DeepSeek"
+            elif provider == "bob-api":
+                from openai import OpenAI as _OpenAI
+
+                api_key = (
+                    self.config.get("bob_api_key")
+                    or os.environ.get("BOB_API_KEY")
+                    or self.config.get("llm_api_key")
+                    or os.environ.get("LLM_API_KEY")
+                )
+                if not isinstance(api_key, str) or not api_key.strip():
+                    return {
+                        "valid": False,
+                        "error": "Invalid API Key: The Bob API key is not set. Please update it in the Settings section.",
+                    }
+
+                base_url = normalize_bob_api_base_url(
+                    self.config.get("bob_api_base_url") or self.config.get("agent_llm_base_url")
+                )
+                model = self.config.get("bob_api_model") or self.config.get("agent_llm_model")
+                if not isinstance(model, str) or not model.strip():
+                    return {"valid": False, "error": "Bob API model name is required"}
+
+                client = _OpenAI(
+                    api_key=api_key.strip(),
+                    base_url=base_url,
+                    timeout=BOB_API_PROVIDER_CONFIG["timeout"],
+                    max_retries=BOB_API_PROVIDER_CONFIG["max_retries"],
+                )
+                _ = client.chat.completions.create(
+                    model=model.strip(),
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=5,
+                )
+                provider_name = PROVIDER_DISPLAY_NAMES[provider]
             else:
                 return {"valid": False, "error": f"Unsupported provider: {provider}"}
             return {"valid": True, "message": f"{provider_name} API key is valid"}
@@ -745,6 +791,11 @@ class WebTradingAnalyzer:
                 return {
                     "valid": False,
                     "error": f"💳 Billing Issue: Your {provider_name} account has insufficient credits or billing issues. Please check your {provider_name} account.",
+                }
+            elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                return {
+                    "valid": False,
+                    "error": f"Timeout: The {provider_name} request timed out. Please try again later.",
                 }
             elif "network" in error_msg.lower() or "connection" in error_msg.lower():
                 return {
@@ -1157,18 +1208,24 @@ def update_provider():
             if "API key not found" not in str(refresh_error):
                 raise
             print(f"Provider updated to {provider}; waiting for API key")
-            return jsonify(
-                {
-                    "success": True,
-                    "needs_api_key": True,
-                    "message": f"Provider updated to {provider}. Please set its API key.",
-                }
-            )
+            response = {
+                "success": True,
+                "needs_api_key": True,
+                "message": f"Provider updated to {provider}. Please set its API key.",
+            }
+            if provider == "bob-api":
+                response["base_url"] = analyzer.config["agent_llm_base_url"]
+                response["model"] = analyzer.config["agent_llm_model"]
+            return jsonify(response)
 
         print(f"Provider updated to {provider} successfully")
         print(f"graph_llm_model updated to {analyzer.config['graph_llm_model']} successfully")
         print(f"agent_llm updated to {analyzer.config['agent_llm_model']} successfully")
-        return jsonify({"success": True, "message": f"Provider updated to {provider}"})
+        response = {"success": True, "message": f"Provider updated to {provider}"}
+        if provider == "bob-api":
+            response["base_url"] = analyzer.config["agent_llm_base_url"]
+            response["model"] = analyzer.config["agent_llm_model"]
+        return jsonify(response)
 
     except Exception as e:
         print(f"Error in update_provider: {str(e)}")
@@ -1189,6 +1246,21 @@ def update_api_key():
         if provider not in SUPPORTED_PROVIDERS:
             return jsonify({"error": f"Provider must be one of {', '.join(SUPPORTED_PROVIDERS)}"})
 
+        if provider == "bob-api":
+            if not isinstance(new_api_key, str) or not new_api_key.strip():
+                return jsonify({"error": "A non-empty Bob API key is required"})
+            try:
+                base_url = normalize_bob_api_base_url(
+                    data.get("base_url") or analyzer.config.get("bob_api_base_url")
+                )
+            except (TypeError, ValueError) as exc:
+                return jsonify({"error": str(exc)})
+            model = data.get("model") or analyzer.config.get("bob_api_model")
+            if not isinstance(model, str) or not model.strip():
+                return jsonify({"error": "Bob API model name is required"})
+            analyzer.config["bob_api_base_url"] = base_url
+            analyzer.config["bob_api_model"] = model.strip()
+
         print(f"Updating {provider} API key to: {new_api_key[:8]}...{new_api_key[-4:]}")
 
         # Update the environment variable
@@ -1206,6 +1278,8 @@ def update_api_key():
             os.environ["GOOGLE_API_KEY"] = new_api_key
         elif provider == "deepseek":
             os.environ["DEEPSEEK_API_KEY"] = new_api_key
+        elif provider == "bob-api":
+            os.environ["BOB_API_KEY"] = new_api_key.strip()
 
         set_active_provider(provider)
 
@@ -1224,6 +1298,8 @@ def update_api_key():
             analyzer.config["gemini_api_key"] = new_api_key
         elif provider == "deepseek":
             analyzer.config["deepseek_api_key"] = new_api_key
+        elif provider == "bob-api":
+            analyzer.config["bob_api_key"] = new_api_key.strip()
 
         analyzer.trading_graph.config.update(analyzer.config)
 
@@ -1281,6 +1357,10 @@ def get_api_key_status():
             api_key = os.environ.get("DEEPSEEK_API_KEY", "")
             if not api_key and hasattr(analyzer, 'config'):
                 api_key = analyzer.config.get("deepseek_api_key", "")
+        elif provider == "bob-api":
+            api_key = analyzer.config.get("bob_api_key", "") if hasattr(analyzer, 'config') else ""
+            if not api_key:
+                api_key = os.environ.get("BOB_API_KEY", "")
         else:
             api_key = ""
         

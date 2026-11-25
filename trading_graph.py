@@ -3,8 +3,10 @@ TradingGraph: Orchestrates the multi-agent trading system using LangChain and La
 Initializes LLMs, toolkits, and agent nodes for indicator, pattern, and trend analysis.
 """
 
+import math
 import os
 from typing import Dict
+from urllib.parse import urlsplit, urlunsplit
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
@@ -12,12 +14,21 @@ from langchain_openai import ChatOpenAI
 from langchain_qwq import ChatQwen
 from langgraph.prebuilt import ToolNode
 
-from env_config import build_config
+from env_config import BOB_API_DEFAULT_BASE_URL, BOB_API_DEFAULT_MODEL, build_config
 from graph_setup import SetGraph
 from graph_util import TechnicalTools
 
 
-SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek")
+SUPPORTED_PROVIDERS = ("openai", "anthropic", "qwen", "minimax", "minimax_cn", "gemini", "deepseek", "bob-api")
+BOB_API_PROVIDER_CONFIG = {
+    "label": "Bob API",
+    "config_key": "bob_api_key",
+    "env_key": "BOB_API_KEY",
+    "base_url": BOB_API_DEFAULT_BASE_URL,
+    "default_model": BOB_API_DEFAULT_MODEL,
+    "timeout": 60,
+    "max_retries": 2,
+}
 MINIMAX_PROVIDER_CONFIG = {
     "minimax": {
         "label": "MiniMax",
@@ -34,6 +45,23 @@ MINIMAX_PROVIDER_CONFIG = {
         "console_url": "https://platform.minimaxi.com/",
     },
 }
+
+
+def normalize_bob_api_base_url(base_url: str = None) -> str:
+    """Validate a Bob API endpoint and normalize its OpenAI-compatible /v1 path."""
+    value = base_url or BOB_API_PROVIDER_CONFIG["base_url"]
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("Bob API base URL must be a non-empty string")
+    parsed = urlsplit(value.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Bob API base URL must be a valid HTTP(S) URL")
+    if parsed.query or parsed.fragment:
+        raise ValueError("Bob API base URL must not contain a query string or fragment")
+
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/v1"
+    return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 
 class TradingGraph:
@@ -243,6 +271,19 @@ class TradingGraph:
                     "Please provide your actual DeepSeek API key. "
                     "You can get one from: https://platform.deepseek.com/api_keys"
                 )
+        elif provider == "bob-api":
+            provider_config = BOB_API_PROVIDER_CONFIG
+            api_key = self.config.get(provider_config["config_key"])
+            if not api_key:
+                api_key = os.environ.get(provider_config["env_key"])
+            if not api_key:
+                api_key = generic_key
+            if not isinstance(api_key, str) or not api_key.strip():
+                raise ValueError(
+                    "Bob API key not found. Please set BOB_API_KEY, configure "
+                    "config['bob_api_key'], or use the web interface."
+                )
+            api_key = api_key.strip()
         else:
             raise ValueError(f"Unsupported provider: {provider}. Must be one of {', '.join(SUPPORTED_PROVIDERS)}")
 
@@ -335,6 +376,26 @@ class TradingGraph:
                 temperature=temperature,
                 api_key=api_key,
                 openai_api_base=base_url or "https://api.deepseek.com/v1",
+            )
+        elif provider == "bob-api":
+            if not isinstance(api_key, str) or not api_key.strip():
+                raise ValueError("Bob API key is required")
+            if not isinstance(model, str) or not model.strip():
+                raise ValueError("Bob API model name is required")
+            if (
+                isinstance(temperature, bool)
+                or not isinstance(temperature, (int, float))
+                or not math.isfinite(temperature)
+                or not 0 <= temperature <= 2
+            ):
+                raise ValueError("Bob API temperature must be a number between 0 and 2")
+            return ChatOpenAI(
+                model=model.strip(),
+                temperature=temperature,
+                api_key=api_key.strip(),
+                openai_api_base=normalize_bob_api_base_url(base_url),
+                timeout=BOB_API_PROVIDER_CONFIG["timeout"],
+                max_retries=BOB_API_PROVIDER_CONFIG["max_retries"],
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}. Must be one of {', '.join(SUPPORTED_PROVIDERS)}")
@@ -438,6 +499,12 @@ class TradingGraph:
         elif provider == "deepseek":
             self.config["deepseek_api_key"] = api_key
             os.environ["DEEPSEEK_API_KEY"] = api_key
+        elif provider == "bob-api":
+            if not isinstance(api_key, str) or not api_key.strip():
+                raise ValueError("Bob API key is required")
+            api_key = api_key.strip()
+            self.config["bob_api_key"] = api_key
+            os.environ["BOB_API_KEY"] = api_key
         else:
             raise ValueError(f"Unsupported provider: {provider}. Must be one of {', '.join(SUPPORTED_PROVIDERS)}")
 

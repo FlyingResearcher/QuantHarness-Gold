@@ -1097,6 +1097,7 @@
                                         <option value="minimax_cn">MiniMax CN</option>
                                         <option value="gemini">Google Gemini (Free)</option>
                                         <option value="deepseek">DeepSeek</option>
+                                        <option value="bob-api">Bob API</option>
                                     </select>
                                 </div>
                                 
@@ -1173,6 +1174,31 @@
                                         <input type="password" class="form-control" id="deepseekApiKeyInput" placeholder="Enter your DeepSeek API key">
                                         <button class="btn btn-outline-primary" type="button" onclick="updateApiKey('deepseek')">
                                             <i class="fas fa-save"></i> Update
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Bob API Configuration -->
+                                <div class="form-group" id="bobApiKeyGroup" style="display: none;">
+                                    <label class="form-label" for="bobApiKeyInput">Bob API Key</label>
+                                    <input type="password" class="form-control" id="bobApiKeyInput" placeholder="Enter your Bob API key" autocomplete="off">
+                                    <label class="form-label mt-2" for="bobApiBaseUrlInput">API Base URL</label>
+                                    <input type="url" class="form-control" id="bobApiBaseUrlInput" value="https://bob-api.com/" placeholder="https://bob-api.com/">
+                                    <label class="form-label mt-2" for="bobApiModelInput">Model Name</label>
+                                    <input class="form-control" id="bobApiModelInput" list="bobApiModelOptions" value="gpt-4o-mini" placeholder="Select or enter a model name">
+                                    <datalist id="bobApiModelOptions">
+                                        <option value="gpt-4o-mini"></option>
+                                        <option value="gpt-4o"></option>
+                                        <option value="claude-sonnet-4-5"></option>
+                                        <option value="claude-opus-4-5"></option>
+                                        <option value="gemini-2.5-flash"></option>
+                                    </datalist>
+                                    <div class="mt-2">
+                                        <button class="btn btn-outline-primary" type="button" onclick="updateApiKey('bob-api')">
+                                            <i class="fas fa-save"></i> Save Configuration
+                                        </button>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="validateBobApiKey(event)">
+                                            <i class="fas fa-check"></i> Validate
                                         </button>
                                     </div>
                                 </div>
@@ -1570,7 +1596,8 @@
                         'minimax': 'MiniMax',
                         'minimax_cn': 'MiniMax CN',
                         'gemini': 'Google Gemini',
-                        'deepseek': 'DeepSeek'
+                        'deepseek': 'DeepSeek',
+                        'bob-api': 'Bob API'
                     };
                     const providerName = providerNames[provider] || provider;
                     
@@ -1918,6 +1945,7 @@
              const minimaxCnGroup = document.getElementById('minimaxCnApiKeyGroup');
              const geminiGroup = document.getElementById('geminiApiKeyGroup');
              const deepseekGroup = document.getElementById('deepseekApiKeyGroup');
+             const bobApiGroup = document.getElementById('bobApiKeyGroup');
 
              // Hide all groups first
              openaiGroup.style.display = 'none';
@@ -1927,6 +1955,7 @@
              minimaxCnGroup.style.display = 'none';
              geminiGroup.style.display = 'none';
              deepseekGroup.style.display = 'none';
+             bobApiGroup.style.display = 'none';
 
              // Show the selected provider's group
              if (provider === 'openai') {
@@ -1943,6 +1972,8 @@
                  geminiGroup.style.display = 'block';
              } else if (provider === 'deepseek') {
                  deepseekGroup.style.display = 'block';
+             } else if (provider === 'bob-api') {
+                 bobApiGroup.style.display = 'block';
              }
              
              // Update provider on backend
@@ -1967,6 +1998,10 @@
              .then(data => {
                  if (data.success) {
                      console.log(`Provider switched to ${provider}`);
+                     if (provider === 'bob-api') {
+                         if (data.base_url) document.getElementById('bobApiBaseUrlInput').value = data.base_url;
+                         if (data.model) document.getElementById('bobApiModelInput').value = data.model;
+                     }
                  } else {
                      console.error('Failed to update provider:', data.error);
                  }
@@ -1995,6 +2030,8 @@
                  apiKey = document.getElementById('geminiApiKeyInput').value.trim();
              } else if (actualProvider === 'deepseek') {
                  apiKey = document.getElementById('deepseekApiKeyInput').value.trim();
+             } else if (actualProvider === 'bob-api') {
+                 apiKey = document.getElementById('bobApiKeyInput').value.trim();
              }
              
              if (!apiKey) {
@@ -2011,16 +2048,28 @@
              updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
              updateBtn.disabled = true;
              
-             // Make API call to update the key
+             const payload = {
+                 api_key: apiKey,
+                 provider: actualProvider
+             };
+             if (actualProvider === 'bob-api') {
+                 payload.base_url = document.getElementById('bobApiBaseUrlInput').value.trim();
+                 payload.model = document.getElementById('bobApiModelInput').value.trim();
+                 if (!payload.base_url || !payload.model) {
+                     updateBtn.innerHTML = originalText;
+                     updateBtn.disabled = false;
+                     showApiKeyError('Please enter both the Bob API base URL and model name');
+                     return;
+                 }
+             }
+
+             // Make API call to update the key and provider-specific settings
              fetch('/api/update-api-key', {
                  method: 'POST',
                  headers: {
                      'Content-Type': 'application/json',
                  },
-                 body: JSON.stringify({ 
-                     api_key: apiKey,
-                     provider: actualProvider
-                 })
+                 body: JSON.stringify(payload)
              })
              .then(response => response.json())
              .then(data => {
@@ -2032,7 +2081,8 @@
                          'minimax': 'MiniMax',
                          'minimax_cn': 'MiniMax CN',
                          'gemini': 'Google Gemini',
-                         'deepseek': 'DeepSeek'
+                         'deepseek': 'DeepSeek',
+                        'bob-api': 'Bob API'
                      };
                      showApiKeySuccess(`${providerNames[actualProvider] || actualProvider} API key updated successfully!`);
                      if (actualProvider === 'openai') {
@@ -2049,6 +2099,8 @@
                          document.getElementById('geminiApiKeyInput').value = '';
                      } else if (actualProvider === 'deepseek') {
                          document.getElementById('deepseekApiKeyInput').value = '';
+                     } else if (actualProvider === 'bob-api') {
+                         document.getElementById('bobApiKeyInput').value = '';
                      }
                      checkApiKeyStatus();
                  } else {
@@ -2066,6 +2118,36 @@
              });
          }
          
+         function validateBobApiKey(buttonEvent) {
+             hideApiKeyMessages();
+             const validateBtn = buttonEvent.target.closest('button');
+             const originalText = validateBtn.innerHTML;
+             validateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validating...';
+             validateBtn.disabled = true;
+
+             fetch('/api/validate-api-key', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ provider: 'bob-api' })
+             })
+             .then(response => response.json())
+             .then(data => {
+                 if (data.valid) {
+                     showApiKeySuccess(data.message || 'Bob API key is valid');
+                 } else {
+                     showApiKeyError(data.error || 'Bob API validation failed');
+                 }
+             })
+             .catch(error => {
+                 console.error('Bob API validation error:', error);
+                 showApiKeyError('An error occurred while validating Bob API');
+             })
+             .finally(() => {
+                 validateBtn.innerHTML = originalText;
+                 validateBtn.disabled = false;
+             });
+         }
+
          function showApiKeySuccess(message) {
              const successDiv = document.getElementById('apiKeySuccess');
              const successText = document.getElementById('apiKeySuccessText');

@@ -1,277 +1,498 @@
-<div align="center">
+# QuantHarness Gold
 
-![QuantHarness Banner](assets/banner.png)
-<h2>QuantHarness: Price-Driven Multi-Agent LLMs for High-Frequency Trading</h2>
+**Price-Driven Multi-Agent LLM Analysis for Gold Markets**
 
-</div>
+[Overview](#overview) | [Features](#key-features) | [Quick Start](#quick-start) | [Configuration](#configuration) | [Usage](#usage) | [Troubleshooting](#troubleshooting-and-faq) | [Citation](#research-and-citation)
 
+## Overview
 
+QuantHarness Gold is a research-oriented, multi-agent LLM system for technical analysis of gold markets. It retrieves recent OHLCV data, generates price charts and technical indicators, coordinates specialized analysis agents with LangGraph, and produces a final **LONG** or **SHORT** decision with supporting reports.
 
-<div align="center">
+This repository is a gold-focused implementation of the [QuantHarness](https://github.com/Y-Research-SBU/QuantHarness) research architecture. The current application supports **COMEX gold futures** and **SHFE gold futures**; it is not the general stock, cryptocurrency, and index application described in earlier versions of this document.
 
-<div style="position: relative; text-align: center; margin: 20px 0;">
-  <div style="position: absolute; top: -10px; right: 20%; font-size: 1.2em;"></div>
-  <p>
-    <a href="https://machineily.github.io/">Fei Xiong</a><sup>1,2 ★</sup>&nbsp;
-    <a href="https://wyattz23.github.io">Xiang Zhang</a><sup>3 ★</sup>&nbsp;
-    <a href="https://scholar.google.com/citations?user=hFhhrmgAAAAJ&hl=en">Aosong Feng</a><sup>4</sup>&nbsp;
-    <a href="https://intersun.github.io/">Siqi Sun</a><sup>5</sup>&nbsp;
-    <a href="https://chenyuyou.me/">Chenyu You</a><sup>1</sup>
-  </p>
-  
-  <p>
-    <sup>1</sup> Stony Brook University &nbsp;&nbsp; 
-    <sup>2</sup> Carnegie Mellon University &nbsp;&nbsp;
-    <sup>3</sup> University of British Columbia &nbsp;&nbsp; <br>
-    <sup>4</sup> Yale University &nbsp;&nbsp; 
-    <sup>5</sup> Fudan University &nbsp;&nbsp; 
-    ★ Equal Contribution <br>
-  </p>
-</div>
+The system does **not** connect to a broker, manage a portfolio, or execute real orders. Market data comes from public sources and should not be treated as a guaranteed real-time or trading-grade feed.
 
-<div align="center" style="margin: 20px 0;">
-  <a href="README.md">English</a> | <a href="README_CN.md">中文</a>
-</div>
+## Key Features
 
-<br>
-<p align="center">
-  <a href="https://arxiv.org/abs/2509.09995">
-    <img src="https://img.shields.io/badge/💡%20ArXiv-2509.09995-B31B1B?style=flat-square" alt="Paper">
-  </a>
-  <a href="https://Y-Research-SBU.github.io/QuantHarness">
-    <img src="https://img.shields.io/badge/Project-Website-blue?style=flat-square&logo=googlechrome" alt="Project Website">
-  </a>
-</p>
+- **Gold-specific market coverage**: Analyze COMEX gold in USD per troy ounce or SHFE main continuous gold futures in CNY per gram.
+- **Multiple public data sources**: Use Eastmoney, Tonghuashun (THS), or AKShare, with automatic source fallback and standardized OHLCV output.
+- **Technical indicator analysis**: Calculate RSI, MACD, ROC, Stochastic Oscillator, and Williams %R through agent tools. Shared reports also include moving averages, Bollinger Bands, and ATR.
+- **Chart pattern recognition**: Generate a recent K-line chart and use a vision-capable LLM to describe relevant price patterns.
+- **Trend analysis**: Fit support and resistance lines, annotate the chart, and summarize direction, channel structure, and consolidation.
+- **Final decision synthesis**: Combine indicator, pattern, and trend findings into JSON-formatted text containing `forecast_horizon`, `decision`, `justification`, and `risk_reward_ratio`.
+- **Execution provenance**: Record whether each analysis stage used an LLM, a vision model, or a local programmatic fallback through `analysis_provenance`.
+- **CLI, Web, and Python interfaces**: Run timestamped Markdown reports from the terminal, use the Flask Web UI, or invoke the graph directly.
 
-</div>
+## Analysis Pipeline
 
-
-A sophisticated multi-agent trading analysis system that combines technical indicators, pattern recognition, and trend analysis using LangChain and LangGraph. The system provides both a web interface and programmatic access for comprehensive market analysis.
-
-
-<div align="center">
-
-🚀 [Features](#-features) | ⚡ [Installation](#-installation) | 🎬 [Usage](#-usage) | 🔧 [Implementation Details](#-implementation-details) | 🤝 [Contributing](#-contributing) | 📄 [License](#-license)
-
-</div>
-
-## 🚀 Features
-
-<!-- - **Multi-Agent Analysis**: Four specialized agents working together: -->
-  
-  ### Indicator Agent
-  
-  • Computes five technical indicators—including RSI to assess momentum extremes, MACD to quantify convergence–divergence dynamics, and the Stochastic Oscillator to measure closing prices against recent trading ranges—on each incoming K‑line, converting raw OHLC data into precise, signal-ready metrics.
-
-  ![indicator agent](assets/indicator.png)
-  
- ### Pattern Agent
-  
-  • Upon a pattern query, the Pattern Agent first uses the agent draws the recent price chart, spots its main highs, lows, and general up‑or‑down moves, compares that shape to a set of familiar patterns, and returns a short, plain‑language description of the best match.
-  
-  ![indicator agent](assets/pattern.png)
-  
-  ### Trend Agent
-  
-  • Leverages tool-generated annotated K‑line charts overlaid with fitted trend channels—upper and lower boundary lines tracing recent highs and lows—to quantify market direction, channel slope, and consolidation zones, then delivers a concise, professional summary of the prevailing trend.
-  
-  ![trend agent](assets/trend.png)
-
-  ### Decision Agent
-  
-  • Synthesizes outputs from the Indicator, Pattern, Trend, and Risk agents—including momentum metrics, detected chart formations, channel analysis, and risk–reward assessments—to formulate actionable trade directives, clearly specifying LONG or SHORT positions, recommended entry and exit points, stop‑loss thresholds, and concise rationale grounded in each agent’s findings.
-  
-  ![alt text](assets/decision.png)
-
-### Web Interface
-Modern Flask-based web application with:
-  - Real-time market data from Yahoo Finance
-  - Interactive asset selection (stocks, crypto, commodities, indices)
-  - Multiple timeframe analysis (1m to 1d)
-  - Dynamic chart generation
-  - API key management
-
-## 📦 Installation
-
-### 1. Create and Activate Conda Environment
-
-```bash
-conda create -n quantharness python=3.11
-conda activate quantharness
+```text
+Public gold market data
+        |
+        v
+Standardized OHLCV + integrity checks
+        |
+        +--------------------+--------------------+
+        |                    |                    |
+        v                    v                    v
+ Indicator Agent       Pattern Agent         Trend Agent
+ RSI/MACD/etc.         K-line chart           Support/resistance
+        |                    |                    |
+        +--------------------+--------------------+
+                             |
+                             v
+                      Decision Agent
+                             |
+                             v
+             LONG/SHORT decision + analysis reports
 ```
 
-### 2. Install Dependencies
+The Decision Agent synthesizes the three analysis reports. There is no independent Risk Agent in the current pipeline, and the system does not place trades.
+
+### Model Slots
+
+QuantHarness Gold uses two configurable LLM slots:
+
+| Slot | Current responsibilities |
+| --- | --- |
+| `graph_llm` | Indicator tool calling and reporting, Pattern/Trend visual analysis, and the final decision |
+| `agent_llm` | Auxiliary Pattern/Trend tool calls when pre-generated chart images are not supplied |
+
+Both the CLI and Web interface pre-generate pattern and trend images. In those standard workflows, `agent_llm` may only be needed by fallback paths, but a model and API key must still resolve for both slots during configuration validation.
+
+For the complete workflow, the `graph_llm` model should support **tool calling and image input**. Some analysis stages can fall back to local programmatic methods with a text-only model, but the final decision still requires an LLM. Check `analysis_provenance` to confirm how each stage actually ran.
+
+## Requirements
+
+- **Python 3.11** is recommended.
+- **TA-Lib**, including its native runtime, is required. Installing only a partial Python wrapper is not sufficient.
+- Network access to at least one supported market data source and your selected LLM endpoint.
+- A valid LLM API key. A vision- and tool-capable model is recommended for `graph_llm`.
+- Python packages listed in [requirements.txt](requirements.txt), including Flask, LangChain, LangGraph, pandas, NumPy, SciPy, matplotlib, mplfinance, Pillow, requests, OpenAI/Anthropic SDKs, and `akshare>=1.20.46`.
+
+## Quick Start
+
+### 1. Clone the Repository
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/ChaoPeng13/QuantHarness-Gold.git
+cd QuantHarness-Gold
 ```
 
-If you encounter issues with TA-lib-python, 
-try
+### 2. Create an Environment and Install Dependencies
+
+Conda is the simplest option because `conda-forge` can provide TA-Lib and its native dependency together:
 
 ```bash
-conda install -c conda-forge ta-lib
+conda create -n quantharness-gold python=3.11 -y
+conda activate quantharness-gold
+conda install -c conda-forge ta-lib -y
+python -m pip install -r requirements.txt
 ```
 
-Or visit the [TA-Lib Python repository](https://github.com/ta-lib/ta-lib-python) for detailed installation instructions.
+Alternatively, use a virtual environment. Install the TA-Lib native library first by following the [official TA-Lib Python installation guide](https://github.com/TA-Lib/ta-lib-python#installation), then run:
 
-### 3. Set Up LLM API Key
-You can set it in our Web InterFace Later,
+**Windows PowerShell**
 
-![alt text](assets/apibox.png)
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
 
-Or set it as an environment variable:
+**macOS / Linux**
+
 ```bash
-# For OpenAI
-export OPENAI_API_KEY="your_openai_api_key_here"
-
-# For Anthropic (Claude)
-export ANTHROPIC_API_KEY="your_anthropic_api_key_here"
-
-# For Qwen (DashScope, based in Singapore — delays may occur)
-export DASHSCOPE_API_KEY="your_dashscope_api_key_here"
-
-# For MiniMax (204K context, OpenAI-compatible API)
-export MINIMAX_API_KEY="your_minimax_api_key_here"
-
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
+Check the core imports before continuing:
 
+```bash
+python -c "import talib, flask, langgraph, akshare; print('Core dependencies imported successfully')"
+```
 
+### 3. Configure the LLM
 
+Copy the example configuration and edit `.env`:
 
-## 🚀 Usage
+**Windows PowerShell**
 
-### Start the Web Interface
+```powershell
+Copy-Item .env.example .env
+```
+
+**macOS / Linux**
+
+```bash
+cp .env.example .env
+```
+
+At minimum, each model slot must resolve a provider, model, and API key. A single shared configuration looks like this:
+
+```ini
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=your-vision-and-tool-capable-model
+LLM_API_KEY=your-api-key
+LLM_TEMPERATURE=0.1
+```
+
+Replace the model placeholder with a model available to your account. See [Configuration](#configuration) for provider-specific settings, split-model examples, and Bob API configuration.
+
+### 4. Run an Analysis
+
+Run the default COMEX daily analysis:
+
+```bash
+python run_gold_analysis.py
+```
+
+Or start the Web interface:
 
 ```bash
 python web_interface.py
 ```
 
-The web application will be available at `http://127.0.0.1:5000`
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000). Both commands require working market-data access and valid LLM configuration for a full analysis.
 
-### Web Interface Features
+## Configuration
 
-1. **Asset Selection**: Choose from available stocks, crypto, commodities, and indices
-2. **Timeframe Selection**: Analyze data from 1-minute to daily intervals
-3. **Date Range**: Select custom date ranges for analysis
-4. **Real-time Analysis**: Get comprehensive technical analysis with visualizations
-5. **API Key Management**: Update your OpenAI API key through the interface
+Configuration is loaded by [env_config.py](env_config.py). Values are resolved in this order:
 
-## 📺 Demo
+1. System environment variables
+2. The project-root `.env` file
+3. Built-in defaults, where available
 
-![Quick preview](assets/demo.gif)
+The `.env` file is git-ignored. Restart the process after editing it, and check for stale system environment variables if your changes appear to have no effect.
 
+### Shared and Per-Slot Variables
 
-## 🔧 Implementation Details
+| Variable | Description |
+| --- | --- |
+| `LLM_PROVIDER` | Shared provider: `openai`, `anthropic`, `qwen`, `minimax`, `minimax_cn`, `gemini`, `deepseek`, or `bob-api` |
+| `LLM_BASE_URL` | Shared endpoint URL, especially for OpenAI-compatible providers |
+| `LLM_MODEL` | Shared model name; required unless both slots define their own model |
+| `LLM_API_KEY` | Shared API key; required unless both slots define their own key |
+| `LLM_TEMPERATURE` | Shared sampling temperature; defaults to `0.1` |
+| `LLM_AGENT_PROVIDER` | Optional provider override for `agent_llm` |
+| `LLM_AGENT_BASE_URL` | Optional endpoint override for `agent_llm` |
+| `LLM_AGENT_MODEL` | Optional model override for `agent_llm` |
+| `LLM_AGENT_API_KEY` | Optional key override for `agent_llm` |
+| `LLM_AGENT_TEMPERATURE` | Optional temperature override for `agent_llm` |
+| `LLM_GRAPH_PROVIDER` | Optional provider override for `graph_llm` |
+| `LLM_GRAPH_BASE_URL` | Optional endpoint override for `graph_llm` |
+| `LLM_GRAPH_MODEL` | Optional model override for `graph_llm` |
+| `LLM_GRAPH_API_KEY` | Optional key override for `graph_llm` |
+| `LLM_GRAPH_TEMPERATURE` | Optional temperature override for `graph_llm` |
+| `GOLD_DATA_SOURCE` | Preferred market data source: `eastmoney`, `ths`, or `akshare`; defaults to `eastmoney` |
 
+Unset slot-specific values inherit the corresponding shared `LLM_*` value. Provider endpoints and model capabilities depend on your service and account.
 
-**Important Note**: Our model requires an LLM that can take images as input, as our agents generate and analyze visual charts for pattern recognition and trend analysis.
+### Provider Endpoints
 
-### Python Usage
+| Provider | Typical base URL or integration |
+| --- | --- |
+| `openai` | `https://api.openai.com/v1` |
+| `anthropic` | Anthropic SDK integration |
+| `qwen` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `minimax` | `https://api.minimax.io/v1` |
+| `minimax_cn` | `https://api.minimaxi.com/v1` |
+| `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| `deepseek` | `https://api.deepseek.com/v1`; the repository examples use text models, so configure a separate vision model for full chart analysis |
+| `bob-api` | `https://api.bob-api.com/`; the client normalizes the OpenAI-compatible `/v1` endpoint |
 
-To use QuantHarness inside your code, you can import the trading_graph module and initialize a TradingGraph() object. The .invoke() function will return a comprehensive analysis. You can run web_interface.py, here's also a quick example:
+### Bob API Example
+
+Bob API can be configured with its dedicated variables instead of repeating shared slot settings:
+
+```ini
+LLM_PROVIDER=bob-api
+BOB_API_KEY=your-bob-api-key
+BOB_API_BASE_URL=https://api.bob-api.com/
+BOB_API_MODEL=deepseek-v4.1-flash
+LLM_TEMPERATURE=0.1
+```
+
+The built-in Bob API defaults are `https://api.bob-api.com/` and `deepseek-v4.1-flash`; `BOB_API_KEY` is still required. The default model name is not a guarantee of tool-calling or vision support. Select a model that provides the capabilities required by your workflow, or override `LLM_GRAPH_*` with a suitable multimodal model.
+
+### Using Different Models for the Two Slots
+
+Slot-specific values take precedence over shared values. For example:
+
+```ini
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=your-agent-model
+LLM_API_KEY=your-openai-key
+
+LLM_GRAPH_PROVIDER=qwen
+LLM_GRAPH_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_GRAPH_MODEL=your-vision-capable-qwen-model
+LLM_GRAPH_API_KEY=your-dashscope-key
+LLM_GRAPH_TEMPERATURE=0.1
+```
+
+### Web UI Configuration Note
+
+Changing the provider, endpoint, model, or API key in the Web UI updates the running process configuration and environment. It **does not rewrite `.env`**. Add persistent settings to `.env` yourself and restart the application.
+
+## Gold Assets and Data Sources
+
+### Supported Assets
+
+| Primary symbol | Aliases | Market and units |
+| --- | --- | --- |
+| `COMEX` | `XAUUSD`, `AU`, `GC` | COMEX gold futures, USD per troy ounce |
+| `SHFE_AU` | `AUM` | SHFE main continuous gold futures, CNY per gram |
+
+`XAUUSD` is an alias for the COMEX-anchored series in this repository. It is **not** an independent spot-gold data stream.
+
+### Source and Timeframe Matrix
+
+| Source | COMEX / XAUUSD | SHFE_AU | 4-hour handling |
+| --- | --- | --- | --- |
+| `eastmoney` | `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`, `1mo` | Same intervals as COMEX | Resampled from `1h` |
+| `ths` | Not supported | `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`, `1mo` | Native `4h` data |
+| `akshare` | `1d` only | `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d` | Resampled from `1h` |
+
+AKShare does not provide weekly or monthly gold data in this integration. The Web interface currently exposes `1m`, `15m`, `1h`, `4h`, `1d`, `1w`, and `1mo`; actual availability still depends on the selected asset and source.
+
+All loaders return a standardized DataFrame with `Datetime`, `Open`, `High`, `Low`, `Close`, and `Volume`. The automatic loader validates OHLC relationships and can fall back to another compatible source. Public endpoints may change, throttle requests, or return incomplete history.
+
+## Usage
+
+### Command-Line Reports
+
+```bash
+# Default: COMEX, daily interval, automatic source selection
+python run_gold_analysis.py
+
+# COMEX hourly data with Eastmoney preferred
+python run_gold_analysis.py COMEX 1h eastmoney
+
+# SHFE 4-hour data from THS, which provides native 4h bars
+python run_gold_analysis.py SHFE_AU 4h ths
+
+# COMEX daily data from AKShare, requesting more history
+python run_gold_analysis.py COMEX 1d akshare --bars 120
+
+# Run without writing a Markdown report
+python run_gold_analysis.py SHFE_AU 1d eastmoney --no-report
+
+# Choose a different report directory
+python run_gold_analysis.py COMEX 1d --report-dir reports/custom
+```
+
+| Argument | Description |
+| --- | --- |
+| `asset` | `COMEX` or `SHFE_AU`, including supported aliases; defaults to `COMEX` |
+| `timeframe` | A supported interval; defaults to `1d` |
+| `source` | Optional preferred source: `eastmoney`, `ths`, or `akshare` |
+| `--bars` | Minimum history requested from the loader; defaults to `60`. This is passed as `min_bars` and is not a strict cap on returned rows |
+| `--report` / `--no-report` | Enable or disable Markdown report generation; enabled by default |
+| `--report-dir` | Report output directory; defaults to `reports/` |
+
+The CLI prints the final decision and indicator, pattern, and trend reports. By default, it also writes a timestamped Markdown report and chart assets under `reports/`, including model details, timings, source attempts, and execution provenance.
+
+Use `python run_gold_analysis.py --help` for the current command-line signature.
+
+### Web Interface
+
+```bash
+python web_interface.py
+```
+
+1. Open [http://127.0.0.1:5000](http://127.0.0.1:5000).
+2. Select a gold asset, timeframe, and compatible data source.
+3. Confirm the model provider, endpoint, model names, and API keys.
+4. Start the analysis and review the indicator, pattern, trend, and final decision sections.
+
+The Web workflow analyzes the latest **45 bars** returned by the selected source. The Flask server currently binds to `127.0.0.1:5000` and is intended for local development rather than exposed production deployment.
+
+### Python API
+
+The following example fetches data, generates the required chart images, and invokes the same graph used by the CLI:
 
 ```python
+import gold_data
+import static_util
+from report_util import build_kline_dict
 from trading_graph import TradingGraph
 
-# Initialize the trading graph
-trading_graph = TradingGraph()
 
-# Create initial state with your data
+df, used_source, attempts = gold_data.fetch_gold_kline_auto(
+    "COMEX",
+    "1h",
+    min_bars=60,
+    preferred="eastmoney",
+)
+if df is None or df.empty:
+    raise RuntimeError(f"No gold data returned; attempts={attempts}")
+
+kline_data = build_kline_dict(df)
+info = gold_data.asset_info("COMEX", source=used_source)
+
 initial_state = {
-    "kline_data": your_dataframe_dict,
+    "kline_data": kline_data,
     "analysis_results": None,
     "messages": [],
-    "time_frame": "4hour",
-    "stock_name": "BTC"
+    "time_frame": "1h",
+    "stock_name": info["name"],
+    "pattern_image": static_util.generate_kline_image(kline_data)["pattern_image"],
+    "trend_image": static_util.generate_trend_image(kline_data)["trend_image"],
 }
 
-# Run the analysis
-final_state = trading_graph.graph.invoke(initial_state)
+final_state = TradingGraph().graph.invoke(initial_state)
 
-# Access results
-print(final_state.get("final_trade_decision"))
 print(final_state.get("indicator_report"))
 print(final_state.get("pattern_report"))
 print(final_state.get("trend_report"))
+print(final_state.get("final_trade_decision"))
+print(final_state.get("analysis_provenance"))
 ```
 
-You can also adjust the default configuration to set your own choice of LLMs or analysis parameters in web_interface.py.
+Important return fields include:
 
-```python
-if provider == "anthropic":
-    # Set default Claude models if not already set to Anthropic models
-    if not analyzer.config["agent_llm_model"].startswith("claude"):
-        analyzer.config["agent_llm_model"] = "claude-haiku-4-5-20251001"
-    if not analyzer.config["graph_llm_model"].startswith("claude"):
-        analyzer.config["graph_llm_model"] = "claude-haiku-4-5-20251001"
+| Field | Content |
+| --- | --- |
+| `indicator_report` | Technical indicator analysis |
+| `pattern_report` | Chart pattern analysis |
+| `trend_report` | Trend and support/resistance analysis |
+| `final_trade_decision` | JSON-formatted decision text, rather than a Python dictionary by default |
+| `analysis_provenance` | Per-stage execution method and model information |
+| `pattern_image`, `trend_image` | Generated chart image data |
 
-elif provider == "qwen":
-    # Set default Qwen models if not already set to Qwen models
-    if not analyzer.config["agent_llm_model"].startswith("qwen"):
-        analyzer.config["agent_llm_model"] = "qwen3-max"
-    if not analyzer.config["graph_llm_model"].startswith("qwen"):
-        analyzer.config["graph_llm_model"] = "qwen3-vl-plus"
+## Data Verification
 
-elif provider == "minimax":
-    # Set default MiniMax models (204K context window)
-    if not analyzer.config["agent_llm_model"].startswith("MiniMax"):
-        analyzer.config["agent_llm_model"] = "MiniMax-M3"
-    if not analyzer.config["graph_llm_model"].startswith("MiniMax"):
-        analyzer.config["graph_llm_model"] = "MiniMax-M3"
+Use the verification utility to exercise source/asset/timeframe combinations and inspect OHLC integrity:
 
-else:
-    # Set default OpenAI models if not already set to OpenAI models
-    if analyzer.config["agent_llm_model"].startswith(("claude", "qwen", "MiniMax")):
-        analyzer.config["agent_llm_model"] = "gpt-4o-mini"
-    if analyzer.config["graph_llm_model"].startswith(("claude", "qwen", "MiniMax")):
-        analyzer.config["graph_llm_model"] = "gpt-4o"
-
+```bash
+python verify_gold_data.py --source eastmoney
+python verify_gold_data.py --source ths
+python verify_gold_data.py --source akshare
+python verify_gold_data.py --source all
 ```
 
-For live data, we recommend using the web interface as it provides access to real-time market data through yfinance. The system automatically fetches the most recent 30 candlesticks for optimal LLM analysis accuracy.
+The utility checks supported combinations, cross-source behavior, 4-hour handling, and writes verification charts under `verification/`. These checks require network access.
 
-### Configuration Options
+Review the individual results, not only the final summary. A `NO DATA` or `SKIP` entry means that a particular combination was not successfully exercised; an overall `PASS` alone does not prove that every source and timeframe returned data.
 
-The system supports the following configuration parameters:
+## Project Structure
 
-- `agent_llm_model`: Model for individual agents (default: "gpt-4o-mini")
-- `graph_llm_model`: Model for graph logic and decision making (default: "gpt-4o")
-- `agent_llm_temperature`: Temperature for agent responses (default: 0.1)
-- `graph_llm_temperature`: Temperature for graph logic (default: 0.1)
-
-**Note**: The system uses default token limits for comprehensive analysis. No artificial token restrictions are applied.
-
-You can configure everything in the `.env` file at the project root (it is git-ignored):
-
-```ini
-LLM_PROVIDER=minimax_cn
-LLM_BASE_URL=https://api.minimaxi.com/v1
-LLM_MODEL=MiniMax-M3.1-Flash
-LLM_API_KEY=your-api-key
-LLM_TEMPERATURE=0.1
-# Optional per-stage overrides
-# LLM_AGENT_MODEL=...
-# LLM_GRAPH_MODEL=...
+```text
+.
+├── run_gold_analysis.py   # CLI entry point and Markdown report generation
+├── web_interface.py       # Flask Web application
+├── trading_graph.py       # LLM construction and graph invocation interface
+├── graph_setup.py         # LangGraph workflow setup
+├── agent_state.py         # Shared graph state
+├── indicator_agent.py     # Technical indicator agent
+├── pattern_agent.py       # Chart pattern agent
+├── trend_agent.py         # Trend analysis agent
+├── decision_agent.py      # Final decision synthesis
+├── gold_data.py           # Gold asset aliases, loaders, fallback, and validation
+├── indicators.py          # Shared TA-Lib and pandas indicator calculations
+├── static_util.py         # K-line and trend chart generation
+├── graph_util.py          # Chart, trend-line, and agent tool helpers
+├── report_util.py         # Report formatting, provenance, and data conversion
+├── env_config.py          # .env/environment configuration loader
+├── verify_gold_data.py    # Data-source verification utility
+├── templates/             # Flask templates
+├── assets/                # Documentation and UI images
+├── reports/               # Generated CLI reports
+├── verification/          # Generated data-verification outputs
+└── requirements.txt       # Python dependencies
 ```
 
-Configuration is loaded by `env_config.py` (system environment variables take precedence over `.env`). No API keys are stored in the source code.
+## Troubleshooting and FAQ
 
-## 🤝 Contributing
+### TA-Lib fails to install or import
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+Use the Conda installation sequence in [Quick Start](#quick-start), or install the native library using the [official TA-Lib instructions](https://github.com/TA-Lib/ta-lib-python#installation) before installing `requirements.txt`. Then verify:
 
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🔖 Citation
+```bash
+python -c "import talib; print(talib.__version__)"
 ```
+
+Make sure the Python interpreter running the application is the same interpreter where the dependency was installed.
+
+### The application reports a missing model or API key
+
+Set `LLM_MODEL` and `LLM_API_KEY`, or provide `LLM_AGENT_MODEL` / `LLM_GRAPH_MODEL` and their corresponding keys. Bob API can instead resolve its model and key from `BOB_API_MODEL` and `BOB_API_KEY` when the relevant provider is `bob-api`.
+
+Remember that system environment variables override `.env`, and configuration changes require a process restart.
+
+### The LLM returns 401, 403, 429, quota, or timeout errors
+
+- Confirm that the API key belongs to the selected provider and endpoint.
+- Check that the model name is available to your account.
+- For `429` or quota errors, inspect account balance, rate limits, and provider status before retrying.
+- For connection or timeout errors, verify network access, proxy settings, and the base URL. Bob API accepts `https://api.bob-api.com/` and normalizes its OpenAI-compatible `/v1` path.
+- Do not paste real API keys into logs, reports, screenshots, issues, or commits.
+
+### Pattern or trend analysis does not use image input
+
+Use a `graph_llm` model that supports both image input and tool calling. Text-only models may cause some stages to use local programmatic fallback methods. Inspect `analysis_provenance` and the generated report to see which method was used; the final decision still requires an LLM.
+
+### A data request returns no rows or an unsupported timeframe
+
+Check the [source and timeframe matrix](#source-and-timeframe-matrix). For example, THS does not support COMEX in this integration, and AKShare supports COMEX daily data only. Try another compatible source or omit the CLI source argument to use the configured preference and automatic fallback.
+
+Public data sources can also be temporarily unavailable. Review the CLI's source-attempt output and individual `NO DATA` / `SKIP` results from `verify_gold_data.py`.
+
+### Indicators are missing or contain NaN values
+
+Longer-period indicators need enough valid history. In particular, MACD and the 60-period moving average can remain unavailable for short windows. Request more history in the CLI, for example:
+
+```bash
+python run_gold_analysis.py COMEX 1d eastmoney --bars 120
+```
+
+The actual history returned still depends on the source. The Web workflow uses 45 bars, so long-period values may be unavailable there.
+
+### Chinese chart labels show missing-glyph warnings
+
+Install a font with Chinese glyph coverage, such as Microsoft YaHei or Noto Sans CJK, make it available to matplotlib, and restart the process. Font availability is operating-system dependent.
+
+### Port 5000 is already in use
+
+Stop the process currently using port `5000`, then restart `web_interface.py`. The Web entry point currently uses the fixed address `127.0.0.1:5000`; it does not expose a CLI port option.
+
+### Web UI model settings disappear after restart
+
+This is expected. Web UI changes apply to the current process and are not persisted to `.env`. Store permanent settings in `.env` or system environment variables.
+
+### Does `XAUUSD` retrieve an independent spot feed?
+
+No. `XAUUSD` currently resolves to the same COMEX-anchored data as `COMEX`.
+
+### Can the current application analyze stocks or cryptocurrencies?
+
+The maintained data and analysis workflow in this repository is gold-specific. Use `COMEX` or `SHFE_AU` and their documented aliases.
+
+### Does QuantHarness Gold place real trades?
+
+No. It produces research outputs only and has no broker integration or order-execution path.
+
+## Security and Operational Notes
+
+- Keep `.env` and API credentials out of version control. Rotate any key that may have been exposed.
+- Treat generated decisions and reports as untrusted research output, not executable trading instructions.
+- Public market-data endpoints can change without notice and may have rate limits, delays, or missing history.
+- The included Flask server is a local development interface, not a hardened production deployment.
+
+## Research and Citation
+
+The original QuantHarness paper describes the research architecture behind this project. Refer to the paper for the original methodology and experimental results; this README describes the current gold-focused repository implementation.
+
+- Paper: [QuantHarness: Price-Driven Multi-Agent LLMs for High-Frequency Trading](https://arxiv.org/abs/2509.09995)
+- Project website: [Y-Research-SBU.github.io/QuantHarness](https://Y-Research-SBU.github.io/QuantHarness)
+
+```bibtex
 @article{xiong2025quantharness,
   title={QuantHarness: Price-Driven Multi-Agent LLMs for High-Frequency Trading},
   author={Fei Xiong and Xiang Zhang and Aosong Feng and Siqi Sun and Chenyu You},
@@ -280,53 +501,22 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 }
 ```
 
+## Contributing
 
-## 🙏 Acknowledgements
+1. Fork the repository and create a focused feature branch.
+2. Keep changes consistent with the current gold data and agent workflow.
+3. Run the relevant existing checks and update documentation when behavior changes.
+4. Do not commit `.env`, API keys, caches, or generated private reports.
+5. Open a pull request describing the change and how it was validated.
 
-This repository was built with the help of the following libraries and frameworks:
+## Acknowledgements
 
-- [**LangGraph**](https://github.com/langchain-ai/langgraph)
-- [**OpenAI**](https://github.com/openai/openai-python)
-- [**Anthropic (Claude)**](https://github.com/anthropics/anthropic-sdk-python)
-- [**Qwen**](https://github.com/QwenLM/Qwen)
-- [**MiniMax**](https://platform.minimaxi.com/) — 204K context, OpenAI-compatible API
-- [**yfinance**](https://github.com/ranaroussi/yfinance)
-- [**Flask**](https://github.com/pallets/flask)
-- [**TechnicalAnalysisAutomation**](https://github.com/neurotrader888/TechnicalAnalysisAutomation/tree/main)
-- [**tvdatafeed**](https://github.com/rongardF/tvdatafeed)
-## ⚠️ Disclaimer
+### Special Thanks to the QuantHarness Team
 
-This software is for educational and research purposes only. It is not intended to provide financial advice. Always do your own research and consider consulting with a financial advisor before making investment decisions.
+This gold-focused project is deeply indebted to the original **QuantHarness** research team — Fei Xiong, Xiang Zhang, Aosong Feng, Siqi Sun, and Chenyu You — whose pioneering work demonstrated that multi-agent LLM architectures could produce coherent, technically grounded market analysis. Their paper *"QuantHarness: Price-Driven Multi-Agent LLMs for High-Frequency Trading"* (arXiv:2509.09995) introduced the core insight that chart images, technical indicators, and structured decision synthesis could be orchestrated through LangGraph into a compelling research system.
 
-## 🐛 Troubleshooting
+We gratefully stand on their shoulders. This repository adapts and extends the QuantHarness architecture for gold markets, adding multi-source OHLCV collection (Eastmoney / THS / AKShare), a dual-slot LLM configuration model, execution provenance tracking, and a gold-specific data normalization layer. The original vision — letting multiple specialized LLM agents collaborate on real market data rather than running as monolithic prompts — remains the heartbeat of this codebase.
 
-### Common Issues
+## Disclaimer
 
-1. **TA-Lib Installation**: If you encounter TA-Lib installation issues, refer to the [official repository](https://github.com/ta-lib/ta-lib-python) for platform-specific instructions.
-
-2. **LLM API Key**: Ensure your API key is properly set in the environment or through the web interface.
-
-3. **Data Fetching**: The system uses Yahoo Finance for data. Some symbols might not be available or have limited historical data.
-
-4. **Memory Issues**: For large datasets, consider reducing the analysis window or using a smaller timeframe.
-
-### Support
-
-If you encounter any issues, please:
-
-0. Try refresh and re-enter LLM API key
-1. Check the troubleshooting section above
-2. Review the error messages in the console
-3. Ensure all dependencies are properly installed
-4. Verify your API key is valid and has sufficient credits
-
-## 📧 Contact
-
-For questions, feedback, or collaboration opportunities, please contact:
-
-**Email**: [chenyu.you@stonybrook.edu](mailto:chenyu.you@stonybrook.edu), [siqisun@fudan.edu.cn](mailto:siqisun@fudan.edu.cn)
-
-
-## Star History
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=Y-Research-SBU/QuantHarness&type=Date)](https://star-history.dera.page/#Y-Research-SBU/QuantHarness&Date)
+This software is for educational and research purposes only. It does not provide financial advice, guaranteed market forecasts, or real trading execution. Public data and LLM outputs may be delayed, incomplete, or incorrect. Always perform independent research and consult a qualified financial professional before making investment decisions.

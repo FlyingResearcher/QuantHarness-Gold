@@ -11,6 +11,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 ENV_FILE = PROJECT_ROOT / ".env"
 
+BOB_API_DEFAULT_BASE_URL = "https://api.bob-api.com/"
+BOB_API_DEFAULT_MODEL = "deepseek-v4.1-flash"
+
 # provider -> 配置字典中对应的 key 字段（沿用既有 provider 分支逻辑）
 _PROVIDER_KEY_FIELDS = {
     "openai": "api_key",
@@ -20,6 +23,7 @@ _PROVIDER_KEY_FIELDS = {
     "minimax_cn": "minimax_cn_api_key",
     "gemini": "gemini_api_key",
     "deepseek": "deepseek_api_key",
+    "bob-api": "bob_api_key",
 }
 
 
@@ -106,6 +110,17 @@ def build_config() -> dict:
         "graph_llm_temperature": _float_env("LLM_GRAPH_TEMPERATURE", temperature),
     }
 
+    # Bob API 支持独立的密钥、地址和模型环境变量，同时保留双槽位覆盖能力。
+    for slot in ("agent", "graph"):
+        if config[f"{slot}_llm_provider"] == "bob-api":
+            config[f"{slot}_llm_model"] = config[f"{slot}_llm_model"] or get_env(
+                "BOB_API_MODEL", BOB_API_DEFAULT_MODEL
+            )
+            config[f"{slot}_llm_base_url"] = config[f"{slot}_llm_base_url"] or get_env(
+                "BOB_API_BASE_URL", BOB_API_DEFAULT_BASE_URL
+            )
+            config[f"{slot}_llm_api_key"] = config[f"{slot}_llm_api_key"] or get_env("BOB_API_KEY")
+
     missing_models = [
         slot
         for slot in ("agent", "graph")
@@ -134,5 +149,23 @@ def build_config() -> dict:
     key_field = _PROVIDER_KEY_FIELDS.get(provider)
     if key_field:
         config[key_field] = api_key
+
+    bob_slot = next(
+        (slot for slot in ("agent", "graph") if config[f"{slot}_llm_provider"] == "bob-api"),
+        None,
+    )
+    config["bob_api_key"] = config["bob_api_key"] or (
+        config[f"{bob_slot}_llm_api_key"] if bob_slot else get_env("BOB_API_KEY", "")
+    )
+    config["bob_api_base_url"] = (
+        config[f"{bob_slot}_llm_base_url"]
+        if bob_slot
+        else get_env("BOB_API_BASE_URL", BOB_API_DEFAULT_BASE_URL)
+    )
+    config["bob_api_model"] = (
+        config[f"{bob_slot}_llm_model"]
+        if bob_slot
+        else get_env("BOB_API_MODEL", BOB_API_DEFAULT_MODEL)
+    )
 
     return config
